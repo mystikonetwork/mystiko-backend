@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "mystiko_downloader",
+    "mystiko_fs",
+    "mystiko_server_utils"
+]
+resolver = "2"
+
+exclude = []
