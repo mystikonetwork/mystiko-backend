@@ -18,19 +18,16 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: SSH Agent
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.SSH_PRIVATE_KEY_MYSTIKO_RUST }}
-            ${{ secrets.SSH_PRIVATE_KEY_MYSTIKO_CIRCUITS }}
-            ${{ secrets.SSH_PRIVATE_KEY_MYSTIKO_PROTOS }}
-
       - name: Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: rustfmt, clippy, llvm-tools-preview
+
+      - name: Setup Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly-ca67d15f4abd46394b324c50e21e66f306a1162d
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
