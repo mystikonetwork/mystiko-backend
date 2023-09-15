@@ -2,10 +2,10 @@ use ethers_providers::ProviderError;
 use serde_json::Error as SerdeJsonError;
 use thiserror::Error;
 
-pub type Result<T> = anyhow::Result<T, TxManagerError>;
+pub type Result<T> = anyhow::Result<T, TransactionMiddlewareError>;
 
 #[derive(Error, Debug)]
-pub enum TxManagerError {
+pub enum TransactionMiddlewareError {
     #[error("read file error {0}")]
     FileError(String),
     #[error(transparent)]
@@ -22,8 +22,8 @@ pub enum TxManagerError {
     EstimateGasError(String),
     #[error("send transaction error {0}")]
     SendTxError(String),
-    #[error("transaction dropped")]
-    TxDropped,
+    #[error("transaction dropped error")]
+    TxDroppedError,
     #[error("confirm transaction error {0}")]
     ConfirmTxError(String),
 }

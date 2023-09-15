@@ -58,4 +58,8 @@ impl TxManagerConfig {
             None => self.min_priority_fee_per_gas,
         }
     }
+
+    pub fn get_max_priority_fee_per_gas(&self) -> u64 {
+        self.max_priority_fee_per_gas
+    }
 }

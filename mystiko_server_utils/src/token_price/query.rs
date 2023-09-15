@@ -1,4 +1,5 @@
-use crate::token_price::error::TokenPriceError;
+use crate::token_price::error::PriceMiddlewareError;
+use crate::token_price::PriceMiddlewareResult;
 use anyhow::Result;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
@@ -48,15 +49,16 @@ pub struct CurrencyQuoteResponse {
     status: Status,
 }
 
+#[derive(Debug)]
 pub struct QueryApiInstance {
     base_url: String,
     client: Client,
 }
 
 impl QueryApiInstance {
-    pub fn new(api_key: &str, base_url: String, timeout_secs: u32) -> Result<QueryApiInstance, reqwest::Error> {
+    pub fn new(api_key: &str, base_url: String, timeout_secs: u32) -> PriceMiddlewareResult<QueryApiInstance> {
         let mut headers = HeaderMap::new();
-        headers.insert("X-CMC_PRO_API_KEY", HeaderValue::from_str(api_key).unwrap());
+        headers.insert("X-CMC_PRO_API_KEY", HeaderValue::from_str(api_key)?);
 
         let client = Client::builder()
             .default_headers(headers)
@@ -66,7 +68,7 @@ impl QueryApiInstance {
         Ok(QueryApiInstance { client, base_url })
     }
 
-    pub async fn get_token_id(&self, symbol: &str) -> Result<Vec<u32>, TokenPriceError> {
+    pub async fn get_token_id(&self, symbol: &str) -> Result<Vec<u32>, PriceMiddlewareError> {
         let mut map = HashMap::new();
         map.insert("symbol", symbol);
         let response = self
@@ -79,13 +81,13 @@ impl QueryApiInstance {
             .await?;
 
         if response.status.error_code != 0 {
-            return Err(TokenPriceError::ResponseError(response.status.error_code));
+            return Err(PriceMiddlewareError::ResponseError(response.status.error_code));
         }
 
         Ok(response.data.iter().map(|d| d.id).collect())
     }
 
-    pub async fn get_latest_price(&self, ids: &[u32]) -> Result<HashMap<u32, f64>, TokenPriceError> {
+    pub async fn get_latest_price(&self, ids: &[u32]) -> Result<HashMap<u32, f64>, PriceMiddlewareError> {
         let ids_str = ids.iter().map(|&id| id.to_string()).collect::<Vec<_>>().join(",");
         let response = self
             .client
@@ -97,7 +99,7 @@ impl QueryApiInstance {
             .await?;
 
         if response.status.error_code != 0 {
-            return Err(TokenPriceError::ResponseError(response.status.error_code));
+            return Err(PriceMiddlewareError::ResponseError(response.status.error_code));
         }
 
         let mut prices = HashMap::new();

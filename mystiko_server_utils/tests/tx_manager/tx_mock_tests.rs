@@ -10,8 +10,8 @@ use ethers_core::types::{Address, Block, Bytes, FeeHistory, Transaction, H256, U
 use ethers_providers::Provider;
 use ethers_signers::{LocalWallet, Signer};
 use mystiko_server_utils::tx_manager::config::TxManagerConfig;
-use mystiko_server_utils::tx_manager::error::TxManagerError;
-use mystiko_server_utils::tx_manager::transaction::TxBuilder;
+use mystiko_server_utils::tx_manager::{TransactionData, TransactionMiddlewareError};
+use mystiko_server_utils::tx_manager::{TransactionMiddleware, TxManagerBuilder};
 use serde_json::json;
 use std::str::FromStr;
 
@@ -22,7 +22,7 @@ async fn test_gas_price() {
     cfg.min_priority_fee_by_chain.insert("2000".to_string(), 4_000_000_123);
     let chain_id = 2000u64;
     let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
-    let builder = TxBuilder::builder()
+    let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id)
         .wallet(wallet)
@@ -33,7 +33,7 @@ async fn test_gas_price() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build_tx(&provider).await;
+    let tx = builder.build(&provider).await;
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
@@ -59,7 +59,7 @@ async fn test_send_1559_tx() {
     let to_address = wallet.address();
     let mut cfg = TxManagerConfig::new(None).unwrap();
     cfg.confirm_interval_secs = 1;
-    let builder = TxBuilder::builder()
+    let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id)
         .wallet(wallet)
@@ -67,8 +67,8 @@ async fn test_send_1559_tx() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build_tx(&provider).await;
-    assert!(tx.is_1559_tx());
+    let tx = builder.build(&provider).await;
+    assert!(tx.support_1559());
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
@@ -77,10 +77,14 @@ async fn test_send_1559_tx() {
 
     mock.push(gas).unwrap();
     mock.push(nonce).unwrap();
-    let gas = tx
-        .estimate_gas(to_address, vec![].as_slice(), &value, &max_gas_price, &provider)
-        .await
-        .unwrap();
+    let mut tx_data = TransactionData::builder()
+        .to(to_address)
+        .data(vec![].into())
+        .value(value)
+        .gas(U256::zero())
+        .max_price(max_gas_price)
+        .build();
+    let gas = tx.estimate_gas(&tx_data, &provider).await.unwrap();
     assert_eq!(gas.to_string(), "100000000000");
 
     let transaction2 = transaction.clone();
@@ -97,12 +101,10 @@ async fn test_send_1559_tx() {
     mock.push(nonce).unwrap();
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await
-        .unwrap();
+    tx_data.gas = gas;
+    let hash = tx.send(&tx_data, &provider).await.unwrap();
     assert_eq!(hash, tx_hash);
-    let receipt = tx.confirm(&provider, hash).await.unwrap();
+    let receipt = tx.confirm(&hash, &provider).await.unwrap();
     assert_eq!(receipt, transaction_receipt);
 }
 
@@ -123,14 +125,14 @@ async fn test_send_legacy_tx() {
     let to_address = wallet.address();
     let mut cfg = TxManagerConfig::new(None).unwrap();
     cfg.confirm_interval_secs = 1;
-    let builder = TxBuilder::builder()
+    let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
 
-    let tx = builder.build_tx(&provider).await;
-    assert!(!tx.is_1559_tx());
+    let tx = builder.build(&provider).await;
+    assert!(!tx.support_1559());
 
     mock.push(price).unwrap();
     let gas_price = tx.gas_price(&provider).await.unwrap();
@@ -138,10 +140,14 @@ async fn test_send_legacy_tx() {
 
     mock.push(gas).unwrap();
     mock.push(price).unwrap();
-    let gas = tx
-        .estimate_gas(to_address, vec![].as_slice(), &value, &max_gas_price, &provider)
-        .await
-        .unwrap();
+    let mut tx_data = TransactionData::builder()
+        .to(to_address)
+        .data(vec![].into())
+        .value(value)
+        .gas(U256::zero())
+        .max_price(max_gas_price)
+        .build();
+    let gas = tx.estimate_gas(&tx_data, &provider).await.unwrap();
     assert_eq!(gas.to_string(), "100000000000");
 
     let gas = U256::from(100_000_000_000u64);
@@ -152,12 +158,10 @@ async fn test_send_legacy_tx() {
     mock.push(tx_hash).unwrap();
     mock.push(nonce).unwrap();
     mock.push(price).unwrap();
-    let hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await
-        .unwrap();
+    tx_data.gas = gas;
+    let hash = tx.send(&tx_data, &provider).await.unwrap();
     assert_eq!(hash, tx_hash);
-    let receipt = tx.confirm(&provider, hash).await.unwrap();
+    let receipt = tx.confirm(&hash, &provider).await.unwrap();
     assert_eq!(receipt, transaction_receipt);
 }
 
@@ -174,7 +178,7 @@ async fn test_1559_tx_with_error() {
     let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
     let to_address = wallet.address();
     let cfg = TxManagerConfig::new(None).unwrap();
-    let builder = TxBuilder::builder()
+    let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id)
         .wallet(wallet)
@@ -182,46 +186,61 @@ async fn test_1559_tx_with_error() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build_tx(&provider).await;
-    assert!(tx.is_1559_tx());
+    let tx = builder.build(&provider).await;
+    assert!(tx.support_1559());
 
     let gas_price = tx.gas_price(&provider).await;
-    assert!(matches!(gas_price.err().unwrap(), TxManagerError::GasPriceError(_)));
+    assert!(matches!(
+        gas_price.err().unwrap(),
+        TransactionMiddlewareError::GasPriceError(_)
+    ));
 
     let max_gas_price = U256::from(100_000_000_000u64);
 
-    let gas = tx
-        .estimate_gas(to_address, vec![].as_slice(), &value, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(gas.err().unwrap(), TxManagerError::NonceError(_)));
+    let mut tx_data = TransactionData::builder()
+        .to(to_address)
+        .data(vec![].into())
+        .value(value)
+        .gas(U256::zero())
+        .max_price(max_gas_price)
+        .build();
+    let gas = tx.estimate_gas(&tx_data, &provider).await;
+    assert!(matches!(gas.err().unwrap(), TransactionMiddlewareError::NonceError(_)));
 
     mock.push(nonce).unwrap();
-    let gas = tx
-        .estimate_gas(to_address, vec![].as_slice(), &value, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(gas.err().unwrap(), TxManagerError::EstimateGasError(_)));
+    let gas = tx.estimate_gas(&tx_data, &provider).await;
+    assert!(matches!(
+        gas.err().unwrap(),
+        TransactionMiddlewareError::EstimateGasError(_)
+    ));
 
     let gas = U256::from(100_000_000_000u64);
-    let tx_hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(tx_hash.err().unwrap(), TxManagerError::GasPriceError(_)));
+    tx_data.gas = gas;
+    let tx_hash = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        tx_hash.err().unwrap(),
+        TransactionMiddlewareError::GasPriceError(_)
+    ));
 
     let max_gas_price = U256::from(1u64);
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx_hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(tx_hash.err().unwrap(), TxManagerError::GasPriceError(_)));
+    tx_data.max_price = max_gas_price;
+    let tx_hash = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        tx_hash.err().unwrap(),
+        TransactionMiddlewareError::GasPriceError(_)
+    ));
 
     let max_gas_price = U256::from(100_000_000_000u64);
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx_hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(tx_hash.err().unwrap(), TxManagerError::NonceError(_)));
+    tx_data.max_price = max_gas_price;
+    let tx_hash = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        tx_hash.err().unwrap(),
+        TransactionMiddlewareError::NonceError(_)
+    ));
 
     let gas = U256::from(100_000_000_000u64);
     mock.push(nonce).unwrap();
@@ -229,10 +248,12 @@ async fn test_1559_tx_with_error() {
     mock.push(nonce).unwrap();
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx_hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(tx_hash.err().unwrap(), TxManagerError::SendTxError(_)));
+    tx_data.gas = gas;
+    let tx_hash = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        tx_hash.err().unwrap(),
+        TransactionMiddlewareError::SendTxError(_)
+    ));
 }
 
 #[tokio::test]
@@ -246,54 +267,73 @@ async fn test_legacy_tx_with_error() {
     let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
     let to_address = wallet.address();
     let cfg = TxManagerConfig::new(None).unwrap();
-    let builder = TxBuilder::builder()
+    let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build_tx(&provider).await;
-    assert!(!tx.is_1559_tx());
+    let tx = builder.build(&provider).await;
+    assert!(!tx.support_1559());
 
     let gas_price = tx.gas_price(&provider).await;
-    assert!(matches!(gas_price.err().unwrap(), TxManagerError::GasPriceError(_)));
+    assert!(matches!(
+        gas_price.err().unwrap(),
+        TransactionMiddlewareError::GasPriceError(_)
+    ));
 
     let max_gas_price = U256::from(100_000_000_000u64);
     mock.push(price).unwrap();
     let value = ethers_core::utils::parse_ether("1").unwrap();
-    let gas = tx
-        .estimate_gas(to_address, vec![].as_slice(), &value, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(gas.err().unwrap(), TxManagerError::EstimateGasError(_)));
+    let mut tx_data = TransactionData::builder()
+        .to(to_address)
+        .data(vec![].into())
+        .value(value)
+        .gas(U256::zero())
+        .max_price(max_gas_price)
+        .build();
+    let gas = tx.estimate_gas(&tx_data, &provider).await;
+    assert!(matches!(
+        gas.err().unwrap(),
+        TransactionMiddlewareError::EstimateGasError(_)
+    ));
 
     let gas = U256::from(100_000_000_000u64);
-    let tx_hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(tx_hash.err().unwrap(), TxManagerError::GasPriceError(_)));
+    tx_data.gas = gas;
+    let tx_hash = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        tx_hash.err().unwrap(),
+        TransactionMiddlewareError::GasPriceError(_)
+    ));
 
     mock.push(price).unwrap();
     let max_gas_price = U256::from(1u64);
-    let tx_hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(tx_hash.err().unwrap(), TxManagerError::GasPriceError(_)));
+    tx_data.max_price = max_gas_price;
+    let tx_hash = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        tx_hash.err().unwrap(),
+        TransactionMiddlewareError::GasPriceError(_)
+    ));
 
     mock.push(price).unwrap();
     let max_gas_price = U256::from(100_000_000_000u64);
-    let tx_hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(tx_hash.err().unwrap(), TxManagerError::NonceError(_)));
+    tx_data.max_price = max_gas_price;
+    let tx_hash = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        tx_hash.err().unwrap(),
+        TransactionMiddlewareError::NonceError(_)
+    ));
 
     let gas = U256::from(100_000_000_000u64);
     mock.push(nonce).unwrap();
     mock.push(gas).unwrap();
     mock.push(nonce).unwrap();
     mock.push(price).unwrap();
-    let tx_hash = tx
-        .send(to_address, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await;
-    assert!(matches!(tx_hash.err().unwrap(), TxManagerError::SendTxError(_)));
+    tx_data.gas = gas;
+    let tx_hash = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        tx_hash.err().unwrap(),
+        TransactionMiddlewareError::SendTxError(_)
+    ));
 }
 
 #[tokio::test]
@@ -308,32 +348,44 @@ async fn test_confirm_with_error() {
     let mut cfg = TxManagerConfig::new(None).unwrap();
     cfg.confirm_interval_secs = 0;
     cfg.max_confirm_count = 4;
-    let builder = TxBuilder::builder()
+    let builder = TxManagerBuilder::builder()
         .config(cfg.clone())
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build_tx(&provider).await;
-    assert!(!tx.is_1559_tx());
+    let tx = builder.build(&provider).await;
+    assert!(!tx.support_1559());
 
     let tx_hash = H256::from_str("0x090b19818d9d087a49c3d2ecee4829ee4acea46089c1381ac5e588188627466d").unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await;
-    assert!(matches!(receipt.err().unwrap(), TxManagerError::ConfirmTxError(_)));
+    let receipt = tx.confirm(&tx_hash, &provider).await;
+    assert!(matches!(
+        receipt.err().unwrap(),
+        TransactionMiddlewareError::ConfirmTxError(_)
+    ));
 
     mock.push(json!(null)).unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await;
-    assert!(matches!(receipt.err().unwrap(), TxManagerError::ConfirmTxError(_)));
+    let receipt = tx.confirm(&tx_hash, &provider).await;
+    assert!(matches!(
+        receipt.err().unwrap(),
+        TransactionMiddlewareError::ConfirmTxError(_)
+    ));
 
     mock.push(json!(null)).unwrap();
     mock.push(json!(null)).unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await;
-    assert!(matches!(receipt.err().unwrap(), TxManagerError::TxDropped));
+    let receipt = tx.confirm(&tx_hash, &provider).await;
+    assert!(matches!(
+        receipt.err().unwrap(),
+        TransactionMiddlewareError::TxDroppedError
+    ));
 
     transaction.block_number = None;
     mock.push(transaction.clone()).unwrap();
     mock.push(json!(null)).unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await;
-    assert!(matches!(receipt.err().unwrap(), TxManagerError::ConfirmTxError(_)));
+    let receipt = tx.confirm(&tx_hash, &provider).await;
+    assert!(matches!(
+        receipt.err().unwrap(),
+        TransactionMiddlewareError::ConfirmTxError(_)
+    ));
 
     transaction.block_number = Some(U64::from(100));
     let block_number1 = U64::from(10);
@@ -343,29 +395,38 @@ async fn test_confirm_with_error() {
     mock.push(block_number1).unwrap();
     mock.push(transaction.clone()).unwrap();
     mock.push(json!(null)).unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await;
-    assert!(matches!(receipt.err().unwrap(), TxManagerError::ConfirmTxError(_)));
+    let receipt = tx.confirm(&tx_hash, &provider).await;
+    assert!(matches!(
+        receipt.err().unwrap(),
+        TransactionMiddlewareError::ConfirmTxError(_)
+    ));
 
     transaction_receipt.status = Some(U64::from(0));
     mock.push(transaction_receipt.clone()).unwrap();
     mock.push(block_number2).unwrap();
     mock.push(transaction.clone()).unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await;
-    assert!(matches!(receipt.err().unwrap(), TxManagerError::ConfirmTxError(_)));
+    let receipt = tx.confirm(&tx_hash, &provider).await;
+    assert!(matches!(
+        receipt.err().unwrap(),
+        TransactionMiddlewareError::ConfirmTxError(_)
+    ));
 
     transaction_receipt.status = Some(U64::from(1));
     mock.push(transaction_receipt.clone()).unwrap();
     mock.push(block_number2).unwrap();
     mock.push(transaction.clone()).unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await;
+    let receipt = tx.confirm(&tx_hash, &provider).await;
     assert_eq!(receipt.unwrap(), transaction_receipt);
 
     transaction.block_number = None;
     for _ in 0..cfg.max_confirm_count {
         mock.push(transaction.clone()).unwrap();
     }
-    let receipt = tx.confirm(&provider, tx_hash).await;
-    assert!(matches!(receipt.err().unwrap(), TxManagerError::ConfirmTxError(_)));
+    let receipt = tx.confirm(&tx_hash, &provider).await;
+    assert!(matches!(
+        receipt.err().unwrap(),
+        TransactionMiddlewareError::ConfirmTxError(_)
+    ));
 }
 
 fn get_1559_block() -> Block<()> {
