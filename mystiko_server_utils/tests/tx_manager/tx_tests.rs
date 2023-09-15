@@ -9,7 +9,7 @@ use ethers_core::utils::Anvil;
 use ethers_providers::{Http, Middleware, Provider};
 use ethers_signers::{LocalWallet, Signer};
 use mystiko_server_utils::tx_manager::config::TxManagerConfig;
-use mystiko_server_utils::tx_manager::transaction::TxBuilder;
+use mystiko_server_utils::tx_manager::{TransactionData, TransactionMiddleware, TxManagerBuilder};
 
 #[tokio::test]
 async fn test_send_1559_tx() {
@@ -26,30 +26,32 @@ async fn test_send_1559_tx() {
     let to = anvil.addresses()[1];
     let value = ethers_core::utils::parse_ether("1").unwrap();
 
-    let builder = TxBuilder::builder()
+    let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id.as_u64())
         .wallet(wallet)
         .build();
-    let tx = builder.build_tx(&provider).await;
-    assert!(tx.is_1559_tx());
+    let tx = builder.build(&provider).await;
+    assert!(tx.support_1559());
 
     let gas_price = tx.gas_price(&provider).await.unwrap();
     assert!(gas_price > U256::zero());
 
     let max_gas_price = U256::from(100_000_000_000u64);
-    let gas = tx
-        .estimate_gas(to, vec![].as_slice(), &value, &max_gas_price, &provider)
-        .await
-        .unwrap();
+    let mut tx_data = TransactionData::builder()
+        .to(to)
+        .data(vec![].into())
+        .value(value)
+        .gas(U256::zero())
+        .max_price(max_gas_price)
+        .build();
+    let gas = tx.estimate_gas(&tx_data, &provider).await.unwrap();
     assert!(gas > U256::zero());
 
     let before = provider.get_balance(to, None).await.unwrap();
-    let tx_hash = tx
-        .send(to, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await
-        .unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await.unwrap();
+    tx_data.gas = gas;
+    let tx_hash = tx.send(&tx_data, &provider).await.unwrap();
+    let receipt = tx.confirm(&tx_hash, &provider).await.unwrap();
     assert_ne!(receipt.block_number.unwrap(), U64::from(0));
     assert_ne!(receipt.status.unwrap(), U64::from(0));
     assert_eq!(receipt.transaction_hash, tx_hash);
@@ -78,31 +80,32 @@ async fn test_send_legacy_tx() {
     let to = anvil.addresses()[1];
     let value = ethers_core::utils::parse_ether("1").unwrap();
 
-    let builder = TxBuilder::builder()
+    let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build_tx(&provider).await;
-    assert!(!tx.is_1559_tx());
+    let tx = builder.build(&provider).await;
+    assert!(!tx.support_1559());
 
     let gas_price = tx.gas_price(&provider).await.unwrap();
     assert!(gas_price > U256::zero());
 
     let max_gas_price = U256::from(100_000_000_000u64);
-
-    let gas = tx
-        .estimate_gas(to, vec![].as_slice(), &value, &max_gas_price, &provider)
-        .await
-        .unwrap();
+    let mut tx_data = TransactionData::builder()
+        .to(to)
+        .data(vec![].into())
+        .value(value)
+        .gas(U256::zero())
+        .max_price(max_gas_price)
+        .build();
+    let gas = tx.estimate_gas(&tx_data, &provider).await.unwrap();
     assert!(gas > U256::zero());
 
     let before = provider.get_balance(to, None).await.unwrap();
-    let tx_hash = tx
-        .send(to, vec![].as_slice(), &value, &gas, &max_gas_price, &provider)
-        .await
-        .unwrap();
-    let receipt = tx.confirm(&provider, tx_hash).await.unwrap();
+    tx_data.gas = gas;
+    let tx_hash = tx.send(&tx_data, &provider).await.unwrap();
+    let receipt = tx.confirm(&tx_hash, &provider).await.unwrap();
     assert_ne!(receipt.block_number.unwrap(), U64::from(0));
     assert_ne!(receipt.status.unwrap(), U64::from(0));
     assert_eq!(receipt.transaction_hash, tx_hash);

@@ -1,5 +1,5 @@
 use ethers_core::types::U256;
-use mystiko_server_utils::token_price::utils::calc_token_precision;
+use mystiko_server_utils::token_price::calc_token_precision;
 
 #[tokio::test]
 async fn test_calc_token_precision() {
