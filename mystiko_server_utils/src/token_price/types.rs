@@ -1,10 +1,11 @@
 use crate::token_price::PriceMiddlewareError;
 use ethers_core::types::U256;
+use std::fmt::Debug;
 
 pub type PriceMiddlewareResult<T> = anyhow::Result<T, PriceMiddlewareError>;
 
 #[async_trait::async_trait]
-pub trait PriceMiddleware {
+pub trait PriceMiddleware: Debug + Send + Sync {
     async fn price(&self, symbol: &str) -> PriceMiddlewareResult<f64>;
     async fn swap(
         &self,
