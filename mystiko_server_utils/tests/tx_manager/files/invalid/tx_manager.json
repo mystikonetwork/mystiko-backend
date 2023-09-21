@@ -1,3 +1,7 @@
 {
-  "max_priority_fee_per_gas": "0x5f5e100"
+  "chains": {
+    "1": {
+      "max_priority_fee_per_gas": "xx"
+    }
+  }
 }

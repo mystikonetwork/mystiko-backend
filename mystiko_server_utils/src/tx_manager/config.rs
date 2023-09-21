@@ -1,65 +1,147 @@
-use mehcode_config::{Config, Environment, File, ValueKind};
+use crate::tx_manager::{TransactionMiddlewareError, TransactionMiddlewareResult};
+use mystiko_utils::config::{load_config, ConfigFile, ConfigLoadOptions};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::PathBuf;
+use typed_builder::TypedBuilder;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
-#[allow(unused)]
-pub struct TxManagerConfig {
-    min_priority_fee_per_gas: u64,
-    max_priority_fee_per_gas: u64,
-    pub confirm_blocks: u32,
-    pub max_confirm_count: u32,
-    pub confirm_interval_secs: u64,
+const TX_MANAGER_ENV_CONFIG_PREFIX: &str = "MYSTIKO_TX_MANAGER";
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct TxManagerChainConfig {
+    #[serde(default = "default_gas_limit_reserve_percentage")]
+    #[builder(default = default_gas_limit_reserve_percentage())]
     pub gas_limit_reserve_percentage: u32,
-    pub force_gas_price_chains: Vec<u64>,
-    pub min_priority_fee_by_chain: HashMap<String, u64>,
+
+    #[serde(default = "default_min_priority_fee_per_gas")]
+    #[builder(default = default_min_priority_fee_per_gas())]
+    pub min_priority_fee_per_gas: u64,
+
+    #[serde(default = "default_max_priority_fee_per_gas")]
+    #[builder(default = default_max_priority_fee_per_gas())]
+    pub max_priority_fee_per_gas: u64,
+
+    #[serde(default = "default_force_gas_price")]
+    #[builder(default = default_force_gas_price())]
+    pub force_gas_price: bool,
+
+    #[serde(default = "default_confirm_interval_secs")]
+    #[builder(default = default_confirm_interval_secs())]
+    pub confirm_interval_secs: u64,
+
+    #[serde(default = "default_confirm_blocks")]
+    #[builder(default = default_confirm_blocks())]
+    pub confirm_blocks: u32,
+
+    #[serde(default = "default_max_confirm_count")]
+    #[builder(default = default_max_confirm_count())]
+    pub max_confirm_count: u32,
+}
+
+impl TxManagerChainConfig {
+    pub fn validate(&self) -> TransactionMiddlewareResult<()> {
+        if self.max_priority_fee_per_gas < self.min_priority_fee_per_gas {
+            return Err(TransactionMiddlewareError::ConfigError(
+                "max_priority_fee_per_gas must be greater than min_priority_fee_per_gas".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl Default for TxManagerChainConfig {
+    fn default() -> Self {
+        Self::builder().build()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct TxManagerConfig {
+    #[serde(default = "default_chains_config")]
+    #[builder(default = default_chains_config())]
+    pub chains: HashMap<u64, TxManagerChainConfig>,
+}
+
+impl Default for TxManagerConfig {
+    fn default() -> Self {
+        Self::builder().build()
+    }
 }
 
 impl TxManagerConfig {
-    pub fn new(config_path: Option<&str>) -> anyhow::Result<Self> {
-        let mut fee: HashMap<String, u64> = HashMap::new();
-        fee.insert("137".to_string(), 30000000000);
-        let mut s = Config::builder()
-            .set_default("min_priority_fee_per_gas", "1000000000")?
-            .set_default("max_priority_fee_per_gas", "50000000000")?
-            .set_default("confirm_blocks", 2)?
-            .set_default("max_confirm_count", 100)?
-            .set_default("confirm_interval_secs", 10)?
-            .set_default("gas_limit_reserve_percentage", 10)?
-            .set_default("force_gas_price_chains", vec!["250", "4002"])?
-            .set_default::<&str, ValueKind>("min_priority_fee_by_chain", fee.into())?;
-
-        if let Some(path) = config_path {
-            let run_config_path = format!("{}/tx_manager.json", path);
-            if Path::exists(Path::new(&run_config_path)) {
-                s = s.add_source(File::with_name(&run_config_path));
-            }
-        }
-
-        let c = s
-            .add_source(Environment::with_prefix("MYSTIKO_TX_MANAGER").separator("."))
-            .build()?;
-
-        let cfg: TxManagerConfig = c.try_deserialize()?;
-
-        if cfg.max_priority_fee_per_gas < cfg.min_priority_fee_per_gas {
-            return Err(anyhow::anyhow!(
-                "max_priority_fee_per_gas must be greater than min_priority_fee_per_gas"
-            ));
-        }
-
-        Ok(cfg)
+    pub fn new(config_path: Option<PathBuf>) -> anyhow::Result<Self> {
+        let config_file: Option<ConfigFile<PathBuf>> = config_path
+            .map(|p| {
+                if p.join("tx_manager.json").exists() {
+                    Some(p.join("tx_manager").into())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(None);
+        let options = if let Some(file) = config_file {
+            ConfigLoadOptions::<PathBuf>::builder()
+                .paths(file)
+                .env_prefix(TX_MANAGER_ENV_CONFIG_PREFIX.to_string())
+                .build()
+        } else {
+            ConfigLoadOptions::<PathBuf>::builder()
+                .env_prefix(TX_MANAGER_ENV_CONFIG_PREFIX.to_string())
+                .build()
+        };
+        load_config::<PathBuf, Self>(&options)
     }
 
-    pub fn get_min_priority_fee_per_gas(&self, chain_id: u64) -> u64 {
-        match self.min_priority_fee_by_chain.get(&chain_id.to_string()) {
-            Some(v) => *v,
-            None => self.min_priority_fee_per_gas,
-        }
+    pub fn chain_config(&self, chain_id: &u64) -> TransactionMiddlewareResult<TxManagerChainConfig> {
+        let config = self
+            .chains
+            .get(chain_id)
+            .unwrap_or(&TxManagerChainConfig::default())
+            .clone();
+        config.validate()?;
+        Ok(config)
     }
+}
 
-    pub fn get_max_priority_fee_per_gas(&self) -> u64 {
-        self.max_priority_fee_per_gas
-    }
+fn default_force_gas_price() -> bool {
+    false
+}
+
+fn default_min_priority_fee_per_gas() -> u64 {
+    1000000000
+}
+
+fn default_max_priority_fee_per_gas() -> u64 {
+    50000000000
+}
+
+fn default_confirm_interval_secs() -> u64 {
+    10
+}
+
+fn default_confirm_blocks() -> u32 {
+    5
+}
+
+fn default_max_confirm_count() -> u32 {
+    100
+}
+
+fn default_gas_limit_reserve_percentage() -> u32 {
+    10
+}
+
+fn default_chains_config() -> HashMap<u64, TxManagerChainConfig> {
+    let mut c = HashMap::new();
+    c.insert(
+        137,
+        TxManagerChainConfig::builder()
+            .min_priority_fee_per_gas(30000000000_u64)
+            .build(),
+    );
+    c.insert(250, TxManagerChainConfig::builder().force_gas_price(true).build());
+    c.insert(4002, TxManagerChainConfig::builder().force_gas_price(true).build());
+    c
 }

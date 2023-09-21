@@ -89,7 +89,7 @@ impl TokenPrice {
             .duration_since(data.record_time)
             .map_err(|_| PriceMiddlewareError::InternalError)?
             .as_secs();
-        Ok(current >= self.config.price_cache_ttl)
+        Ok(current >= self.config.price_cache_ttl())
     }
 
     async fn update_token_prices(&self) -> PriceMiddlewareResult<()> {

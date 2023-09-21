@@ -1,3 +1,4 @@
+use anyhow::Error as AnyhowError;
 use reqwest::header::InvalidHeaderValue;
 use serde_json::Error as SerdeJsonError;
 use thiserror::Error;
@@ -20,4 +21,6 @@ pub enum PriceMiddlewareError {
     ReqwestError(#[from] reqwest::Error),
     #[error(transparent)]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
+    #[error(transparent)]
+    AnyhowError(#[from] AnyhowError),
 }

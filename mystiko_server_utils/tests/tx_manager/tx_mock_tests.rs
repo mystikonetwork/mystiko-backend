@@ -1,26 +1,27 @@
-extern crate ethers_providers;
-extern crate ethers_signers;
-extern crate rand;
-extern crate serde_json;
-extern crate tokio;
-
 use ethers_core::types::transaction::eip2930::AccessList;
 use ethers_core::types::transaction::response::TransactionReceipt;
 use ethers_core::types::{Address, Block, Bytes, FeeHistory, Transaction, H256, U256, U64};
 use ethers_providers::Provider;
 use ethers_signers::{LocalWallet, Signer};
+use mystiko_server_utils::tx_manager::config::TxManagerChainConfig;
 use mystiko_server_utils::tx_manager::config::TxManagerConfig;
-use mystiko_server_utils::tx_manager::{TransactionData, TransactionMiddlewareError};
-use mystiko_server_utils::tx_manager::{TransactionMiddleware, TxManagerBuilder};
+use mystiko_server_utils::tx_manager::TransactionData;
+use mystiko_server_utils::tx_manager::{TransactionMiddleware, TransactionMiddlewareError, TxManagerBuilder};
 use serde_json::json;
 use std::str::FromStr;
 
 #[tokio::test]
 async fn test_gas_price() {
     let (provider, mock) = Provider::mocked();
-    let mut cfg = TxManagerConfig::new(None).unwrap();
-    cfg.min_priority_fee_by_chain.insert("2000".to_string(), 4_000_000_123);
     let chain_id = 2000u64;
+
+    let mut cfg = TxManagerConfig::new(None).unwrap();
+    cfg.chains.insert(
+        chain_id,
+        TxManagerChainConfig::builder()
+            .min_priority_fee_per_gas(4_000_000_123_u64)
+            .build(),
+    );
     let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
     let builder = TxManagerBuilder::builder()
         .config(cfg)
@@ -33,7 +34,7 @@ async fn test_gas_price() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build(&provider).await;
+    let tx = builder.build(&provider).await.unwrap();
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
@@ -58,7 +59,10 @@ async fn test_send_1559_tx() {
     let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
     let to_address = wallet.address();
     let mut cfg = TxManagerConfig::new(None).unwrap();
-    cfg.confirm_interval_secs = 1;
+    cfg.chains.insert(
+        chain_id,
+        TxManagerChainConfig::builder().confirm_interval_secs(1_u64).build(),
+    );
     let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id)
@@ -67,7 +71,7 @@ async fn test_send_1559_tx() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build(&provider).await;
+    let tx = builder.build(&provider).await.unwrap();
     assert!(tx.support_1559());
 
     mock.push(history.clone()).unwrap();
@@ -90,7 +94,7 @@ async fn test_send_1559_tx() {
     let transaction2 = transaction.clone();
     transaction.block_number = None;
     let block_number = U64::from(6203173);
-    let block_number2 = U64::from(6203176);
+    let block_number2 = U64::from(6203276);
     mock.push(transaction_receipt.clone()).unwrap();
     mock.push(block_number2).unwrap();
     mock.push(transaction2.clone()).unwrap();
@@ -124,14 +128,17 @@ async fn test_send_legacy_tx() {
     let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
     let to_address = wallet.address();
     let mut cfg = TxManagerConfig::new(None).unwrap();
-    cfg.confirm_interval_secs = 1;
+    cfg.chains.insert(
+        chain_id,
+        TxManagerChainConfig::builder().confirm_interval_secs(1_u64).build(),
+    );
     let builder = TxManagerBuilder::builder()
         .config(cfg)
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
 
-    let tx = builder.build(&provider).await;
+    let tx = builder.build(&provider).await.unwrap();
     assert!(!tx.support_1559());
 
     mock.push(price).unwrap();
@@ -151,7 +158,7 @@ async fn test_send_legacy_tx() {
     assert_eq!(gas.to_string(), "100000000000");
 
     let gas = U256::from(100_000_000_000u64);
-    let block_number = U64::from(6203176);
+    let block_number = U64::from(6203276);
     mock.push(transaction_receipt.clone()).unwrap();
     mock.push(block_number).unwrap();
     mock.push(transaction.clone()).unwrap();
@@ -186,7 +193,7 @@ async fn test_1559_tx_with_error() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build(&provider).await;
+    let tx = builder.build(&provider).await.unwrap();
     assert!(tx.support_1559());
 
     let gas_price = tx.gas_price(&provider).await;
@@ -272,7 +279,7 @@ async fn test_legacy_tx_with_error() {
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build(&provider).await;
+    let tx = builder.build(&provider).await.unwrap();
     assert!(!tx.support_1559());
 
     let gas_price = tx.gas_price(&provider).await;
@@ -346,14 +353,20 @@ async fn test_confirm_with_error() {
     let chain_id = 2000u64;
     let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
     let mut cfg = TxManagerConfig::new(None).unwrap();
-    cfg.confirm_interval_secs = 0;
-    cfg.max_confirm_count = 4;
+    let max_confirm_count = 4_u32;
+    cfg.chains.insert(
+        chain_id,
+        TxManagerChainConfig::builder()
+            .confirm_interval_secs(0_u64)
+            .max_confirm_count(max_confirm_count)
+            .build(),
+    );
     let builder = TxManagerBuilder::builder()
         .config(cfg.clone())
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build(&provider).await;
+    let tx = builder.build(&provider).await.unwrap();
     assert!(!tx.support_1559());
 
     let tx_hash = H256::from_str("0x090b19818d9d087a49c3d2ecee4829ee4acea46089c1381ac5e588188627466d").unwrap();
@@ -419,7 +432,7 @@ async fn test_confirm_with_error() {
     assert_eq!(receipt.unwrap(), transaction_receipt);
 
     transaction.block_number = None;
-    for _ in 0..cfg.max_confirm_count {
+    for _ in 0..max_confirm_count {
         mock.push(transaction.clone()).unwrap();
     }
     let receipt = tx.confirm(&tx_hash, &provider).await;
