@@ -6,12 +6,10 @@ pub type Result<T> = anyhow::Result<T, TransactionMiddlewareError>;
 
 #[derive(Error, Debug)]
 pub enum TransactionMiddlewareError {
-    #[error("read file error {0}")]
-    FileError(String),
+    #[error("config error {0}")]
+    ConfigError(String),
     #[error(transparent)]
     SerdeJsonError(#[from] SerdeJsonError),
-    // #[error(transparent)]
-    // FromHexError(#[from] ff::hex::FromHexError),
     #[error(transparent)]
     ProviderError(#[from] ProviderError),
     #[error("nonce manager error {0}")]

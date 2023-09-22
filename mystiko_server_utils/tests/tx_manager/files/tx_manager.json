@@ -1,3 +1,7 @@
 {
-  "max_confirm_count": 123456
+  "chains": {
+    "1": {
+      "max_confirm_count": 123456
+    }
+  }
 }

@@ -1,4 +1,4 @@
-use crate::tx_manager::config::TxManagerConfig;
+use crate::tx_manager::config::{TxManagerChainConfig, TxManagerConfig};
 use crate::tx_manager::error::{Result, TransactionMiddlewareError};
 use ethers_core::types::transaction::eip1559::Eip1559TransactionRequest;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
@@ -27,28 +27,24 @@ pub struct TxManagerBuilder {
 #[derive(Debug)]
 pub struct TxManager<P> {
     chain_id: u64,
-    config: TxManagerConfig,
+    config: TxManagerChainConfig,
     wallet: LocalWallet,
     support_1559: bool,
     _marker: PhantomData<P>,
 }
 
 impl TxManagerBuilder {
-    pub async fn build<P: JsonRpcClient>(&self, provider: &Provider<P>) -> TxManager<P> {
+    pub async fn build<P: JsonRpcClient>(&self, provider: &Provider<P>) -> TransactionMiddlewareResult<TxManager<P>> {
+        let chain_config = self.config.chain_config(&self.chain_id)?;
         let support_1559 =
-            !self.is_force_gas_price_chain() && ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok();
-
-        TxManager {
+            !chain_config.force_gas_price && ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok();
+        Ok(TxManager {
             chain_id: self.chain_id,
-            config: self.config.clone(),
+            config: chain_config.clone(),
             wallet: self.wallet.clone(),
             support_1559,
             _marker: Default::default(),
-        }
-    }
-
-    fn is_force_gas_price_chain(&self) -> bool {
-        self.config.force_gas_price_chains.contains(&self.chain_id)
+        })
     }
 }
 
@@ -69,7 +65,7 @@ where
     async fn estimate_gas(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<U256> {
         let typed_tx = match self.support_1559 {
             true => {
-                let priority_fee = self.config.get_min_priority_fee_per_gas(self.chain_id);
+                let priority_fee = self.config.min_priority_fee_per_gas;
                 let tx = self.build_1559_tx(data, &priority_fee.into(), provider).await?;
                 TypedTransaction::try_from(tx).expect("Failed to convert Eip1559TransactionRequest to TypedTransaction")
             }
@@ -119,9 +115,9 @@ where
         provider: &Provider<P>,
     ) -> TransactionMiddlewareResult<TransactionReceipt> {
         info!("confirm tx {:?}", tx_hash);
+
         for _ in 0..self.config.max_confirm_count {
             tokio::time::sleep(Duration::from_secs(self.config.confirm_interval_secs)).await;
-
             let tx_first = provider
                 .get_transaction(*tx_hash)
                 .await
@@ -129,7 +125,6 @@ where
 
             // try again for some provider error of lose transaction for a while
             // todo polygon provider bug, more wait time
-
             let tx = match tx_first {
                 Some(t) => t,
                 None => {
@@ -192,8 +187,8 @@ where
             .estimate_eip1559_fees()
             .await
             .map_err(|e| TransactionMiddlewareError::GasPriceError(e.to_string()))?;
-        let cfg_min_priority_fee: U256 = self.config.get_min_priority_fee_per_gas(self.chain_id).into();
-        let cfg_max_priority_fee: U256 = self.config.get_max_priority_fee_per_gas().into();
+        let cfg_min_priority_fee: U256 = self.config.min_priority_fee_per_gas.into();
+        let cfg_max_priority_fee: U256 = self.config.max_priority_fee_per_gas.into();
         if priority_fee < cfg_min_priority_fee {
             priority_fee = cfg_min_priority_fee;
         } else if priority_fee > cfg_max_priority_fee {

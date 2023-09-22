@@ -24,6 +24,8 @@ generic-array = { version = "0.14.6" }
 dotenv = { version = "0.15.0" }
 tokio = { version = "1.26.0", features = ["time"] }
 
+mystiko_utils = { git = "ssh://git@github.com/mystikonetwork/mystiko-rust.git", rev = "f1512ac", features = ["config"]}
+
 [dev-dependencies]
 tokio = { version = "1.26.0", features = ["macros", "rt", "test-util"] }
 rand = { version = "0.8.5" }

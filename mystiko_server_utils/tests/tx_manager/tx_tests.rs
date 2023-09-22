@@ -1,19 +1,13 @@
-extern crate ethers_providers;
-extern crate ethers_signers;
-extern crate rand;
-extern crate serde_json;
-extern crate tokio;
-
 use ethers_core::types::{U256, U64};
 use ethers_core::utils::Anvil;
 use ethers_providers::{Http, Middleware, Provider};
 use ethers_signers::{LocalWallet, Signer};
+use mystiko_server_utils::tx_manager::config::TxManagerChainConfig;
 use mystiko_server_utils::tx_manager::config::TxManagerConfig;
 use mystiko_server_utils::tx_manager::{TransactionData, TransactionMiddleware, TxManagerBuilder};
 
 #[tokio::test]
 async fn test_send_1559_tx() {
-    // Spawn local node
     let anvil = Anvil::new().spawn();
     let endpoint = anvil.endpoint();
 
@@ -22,7 +16,10 @@ async fn test_send_1559_tx() {
     let wallet: LocalWallet = anvil.keys().first().unwrap().clone().into();
     let wallet = wallet.with_chain_id(chain_id.as_u64());
     let mut cfg = TxManagerConfig::new(None).unwrap();
-    cfg.confirm_blocks = 0;
+    cfg.chains.insert(
+        chain_id.as_u64(),
+        TxManagerChainConfig::builder().confirm_blocks(0_u32).build(),
+    );
     let to = anvil.addresses()[1];
     let value = ethers_core::utils::parse_ether("1").unwrap();
 
@@ -31,7 +28,7 @@ async fn test_send_1559_tx() {
         .chain_id(chain_id.as_u64())
         .wallet(wallet)
         .build();
-    let tx = builder.build(&provider).await;
+    let tx = builder.build(&provider).await.unwrap();
     assert!(tx.support_1559());
 
     let gas_price = tx.gas_price(&provider).await.unwrap();
@@ -63,7 +60,6 @@ async fn test_send_1559_tx() {
 
 #[tokio::test]
 async fn test_send_legacy_tx() {
-    // Spawn local node
     let anvil = Anvil::new().spawn();
     let endpoint = anvil.endpoint();
 
@@ -72,10 +68,14 @@ async fn test_send_legacy_tx() {
     let wallet: LocalWallet = anvil.keys().first().unwrap().clone().into();
     let wallet = wallet.with_chain_id(chain_id);
 
-    let force_chain = vec![chain_id];
     let mut cfg = TxManagerConfig::new(None).unwrap();
-    cfg.force_gas_price_chains = force_chain;
-    cfg.confirm_blocks = 0;
+    cfg.chains.insert(
+        chain_id,
+        TxManagerChainConfig::builder()
+            .force_gas_price(true)
+            .confirm_blocks(0_u32)
+            .build(),
+    );
 
     let to = anvil.addresses()[1];
     let value = ethers_core::utils::parse_ether("1").unwrap();
@@ -85,7 +85,7 @@ async fn test_send_legacy_tx() {
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build(&provider).await;
+    let tx = builder.build(&provider).await.unwrap();
     assert!(!tx.support_1559());
 
     let gas_price = tx.gas_price(&provider).await.unwrap();
