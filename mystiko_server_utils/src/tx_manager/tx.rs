@@ -53,6 +53,10 @@ impl<P> TransactionMiddleware<P> for TxManager<P>
 where
     P: JsonRpcClient + Send + Sync,
 {
+    fn support_1559(&self) -> bool {
+        self.support_1559
+    }
+
     async fn gas_price(&self, provider: &Provider<P>) -> TransactionMiddlewareResult<U256> {
         if self.support_1559 {
             let (max_fee_per_gas, priority_fee) = self.gas_price_1559_tx(provider).await?;
@@ -92,7 +96,10 @@ where
         if self.support_1559 {
             let (max_fee_per_gas, priority_fee) = self.gas_price_1559_tx(provider).await?;
             if max_fee_per_gas + priority_fee > data.max_price {
-                return Err(TransactionMiddlewareError::GasPriceError("gas price too high".into()));
+                return Err(TransactionMiddlewareError::GasPriceError(format!(
+                    "gas price too high provider max_fee_per_gas: {:?} priority_fee: {:?} data max_price: {:?}",
+                    max_fee_per_gas, priority_fee, data.max_price
+                )));
             }
             let mut tx_request = self.build_1559_tx(data, &priority_fee, provider).await?;
             tx_request.gas = Some(gas_limit);
@@ -101,7 +108,10 @@ where
             // todo change gas
             let gas_price = self.gas_price_legacy_tx(provider).await?;
             if gas_price > data.max_price {
-                return Err(TransactionMiddlewareError::GasPriceError("gas price too high".into()));
+                return Err(TransactionMiddlewareError::GasPriceError(format!(
+                    "gas price too high provider gas_price: {:?} data max_price: {:?}",
+                    gas_price, data.max_price
+                )));
             }
             let mut tx_request = self.build_legacy_tx(data, provider).await?;
             tx_request.gas = Some(gas_limit);
@@ -133,7 +143,7 @@ where
                         .get_transaction(*tx_hash)
                         .await
                         .map_err(|why| TransactionMiddlewareError::ConfirmTxError(why.to_string()))?
-                        .ok_or_else(|| TransactionMiddlewareError::TxDroppedError)?
+                        .ok_or_else(|| TransactionMiddlewareError::TxDroppedError(tx_hash.to_string()))?
                 }
             };
 
@@ -166,9 +176,10 @@ where
             }
         }
 
-        Err(TransactionMiddlewareError::ConfirmTxError(
-            "reach max confirm count".into(),
-        ))
+        Err(TransactionMiddlewareError::ConfirmTxError(format!(
+            "reach max confirm count: {:?}",
+            self.config.max_confirm_count
+        )))
     }
 }
 
@@ -176,10 +187,6 @@ impl<P> TxManager<P>
 where
     P: JsonRpcClient + Send + Sync,
 {
-    pub fn support_1559(&self) -> bool {
-        self.support_1559
-    }
-
     async fn gas_price_1559_tx(&self, provider: &Provider<P>) -> Result<(U256, U256)> {
         let gas_oracle = ProviderOracle::new(provider);
 
