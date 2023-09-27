@@ -118,6 +118,7 @@ fn default_coin_market_cap_ids() -> HashMap<String, u32> {
     ids.insert("mAVAX".to_string(), 5805);
     ids.insert("USDT".to_string(), 825);
     ids.insert("USDC".to_string(), 3408);
+    ids.insert("USDbC".to_string(), 3408);
     ids.insert("BUSD".to_string(), 4687);
     ids.insert("MTT".to_string(), 1839);
     ids.insert("mUSD".to_string(), 1839);

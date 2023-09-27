@@ -53,6 +53,10 @@ impl<P> TransactionMiddleware<P> for TxManager<P>
 where
     P: JsonRpcClient + Send + Sync,
 {
+    fn support_1559(&self) -> bool {
+        self.support_1559
+    }
+
     async fn gas_price(&self, provider: &Provider<P>) -> TransactionMiddlewareResult<U256> {
         if self.support_1559 {
             let (max_fee_per_gas, priority_fee) = self.gas_price_1559_tx(provider).await?;
@@ -176,10 +180,6 @@ impl<P> TxManager<P>
 where
     P: JsonRpcClient + Send + Sync,
 {
-    pub fn support_1559(&self) -> bool {
-        self.support_1559
-    }
-
     async fn gas_price_1559_tx(&self, provider: &Provider<P>) -> Result<(U256, U256)> {
         let gas_oracle = ProviderOracle::new(provider);
 
