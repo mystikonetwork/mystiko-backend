@@ -107,7 +107,7 @@ impl TokenPrice {
         self.config
             .coin_market_cap_ids
             .get(symbol)
-            .ok_or(PriceMiddlewareError::TokenNotSupportError)
+            .ok_or(PriceMiddlewareError::TokenNotSupportError(symbol.to_string()))
             .and_then(|id| data.prices.get(id).copied().ok_or(PriceMiddlewareError::InternalError))
     }
 }

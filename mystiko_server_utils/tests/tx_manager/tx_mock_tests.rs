@@ -388,7 +388,7 @@ async fn test_confirm_with_error() {
     let receipt = tx.confirm(&tx_hash, &provider).await;
     assert!(matches!(
         receipt.err().unwrap(),
-        TransactionMiddlewareError::TxDroppedError
+        TransactionMiddlewareError::TxDroppedError(_)
     ));
 
     transaction.block_number = None;

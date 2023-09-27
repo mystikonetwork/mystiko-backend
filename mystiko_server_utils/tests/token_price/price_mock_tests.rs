@@ -214,7 +214,7 @@ async fn test_internal_error() {
     }
     assert!(matches!(
         price.err().unwrap(),
-        PriceMiddlewareError::TokenNotSupportError
+        PriceMiddlewareError::TokenNotSupportError(_)
     ));
     let price = tp.price("mMATIC").await;
     assert!(matches!(price.err().unwrap(), PriceMiddlewareError::InternalError));
