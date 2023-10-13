@@ -2,6 +2,7 @@
 members = [
     "mystiko_downloader",
     "mystiko_fs",
+    "mystiko_notification",
     "mystiko_server_utils"
 ]
 resolver = "2"

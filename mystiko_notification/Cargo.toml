@@ -1,0 +1,21 @@
+[package]
+name = "mystiko_notification"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+sns = ["rusoto_core", "rusoto_sns"]
+
+[dependencies]
+anyhow = { version = "1.0.69" }
+async-trait = { version = "0.1.64" }
+rusoto_core = { version ="0.48.0", optional = true }
+rusoto_sns = { version = "0.48.0", optional = true }
+thiserror = { version = "1.0", default-features = false }
+typed-builder = { version = "0.15.2" }
+
+[dev-dependencies]
+mockall = { version = "0.11.4" }
+mystiko_notification = { version = "*", path = ".", features = ["sns"] }
+tokio = { version = "1.27.0", features = ["macros", "rt", "test-util"] }

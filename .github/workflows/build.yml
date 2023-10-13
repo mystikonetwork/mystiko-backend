@@ -42,17 +42,24 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
+      - name: Build
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: cargo build
+
+      - name: Build All Features
+        env:
+          RUSTFLAGS: "-D warnings"
+        run: cargo build --all-features
+
       - name: Check Format
         run: cargo fmt --all -- --check
 
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -j 4 -- -D warnings
 
-      - name: Build
-        run: RUSTFLAGS="-D warnings" cargo build --all-features
-
       - name: Run Test
-        run: cargo llvm-cov test --all-features --no-report
+        run: cargo llvm-cov test --no-report
 
       - name: Generate Coverage
         run: cargo llvm-cov report --lcov --output-path=lcov.info
