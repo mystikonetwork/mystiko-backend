@@ -12,6 +12,7 @@ use ethers_middleware::gas_oracle::{GasOracle, ProviderOracle};
 use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
 use ethers_providers::{JsonRpcClient, Middleware, Provider};
 use ethers_signers::{LocalWallet, Signer};
+use std::cmp::{max, min};
 use std::marker::PhantomData;
 use std::time::Duration;
 use tracing::info;
@@ -69,7 +70,7 @@ where
     async fn estimate_gas(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<U256> {
         let typed_tx = match self.support_1559 {
             true => {
-                let priority_fee = self.config.min_priority_fee_per_gas;
+                let priority_fee = self.config.min_priority_fee_per_gas.unwrap_or_else(|| 100000000_u64);
                 let tx = self.build_1559_tx(data, &priority_fee.into(), provider).await?;
                 TypedTransaction::try_from(tx).expect("Failed to convert Eip1559TransactionRequest to TypedTransaction")
             }
@@ -194,13 +195,16 @@ where
             .estimate_eip1559_fees()
             .await
             .map_err(|e| TransactionMiddlewareError::GasPriceError(e.to_string()))?;
-        let cfg_min_priority_fee: U256 = self.config.min_priority_fee_per_gas.into();
-        let cfg_max_priority_fee: U256 = self.config.max_priority_fee_per_gas.into();
-        if priority_fee < cfg_min_priority_fee {
-            priority_fee = cfg_min_priority_fee;
-        } else if priority_fee > cfg_max_priority_fee {
-            priority_fee = cfg_max_priority_fee;
-        }
+
+        priority_fee = self
+            .config
+            .min_priority_fee_per_gas
+            .map_or_else(|| priority_fee, |cfg_min| max(cfg_min.into(), priority_fee));
+
+        priority_fee = self
+            .config
+            .max_priority_fee_per_gas
+            .map_or_else(|| priority_fee, |cfg_max| min(cfg_max.into(), priority_fee));
 
         Ok((max_fee_per_gas, priority_fee))
     }
@@ -215,14 +219,14 @@ where
     }
 
     async fn build_legacy_tx(&self, data: &TransactionData, provider: &Provider<P>) -> Result<TransactionRequest> {
-        let curr_nonce = self.get_current_nonce(provider).await?;
+        let cur_nonce = self.get_current_nonce(provider).await?;
 
         Ok(TransactionRequest::new()
             .chain_id(self.chain_id)
             .to(ethers_core::types::NameOrAddress::Address(data.to))
             .value(data.value)
             .data(data.data.to_vec())
-            .nonce(curr_nonce)
+            .nonce(cur_nonce)
             .gas_price(data.max_price))
     }
 
@@ -258,7 +262,7 @@ where
         priority_fee: &U256,
         provider: &Provider<P>,
     ) -> Result<Eip1559TransactionRequest> {
-        let curr_nonce = self.get_current_nonce(provider).await?;
+        let cur_nonce = self.get_current_nonce(provider).await?;
 
         // todo set priority_fee_per_gas from provider
         Ok(Eip1559TransactionRequest::new()
@@ -266,7 +270,7 @@ where
             .to(ethers_core::types::NameOrAddress::Address(data.to))
             .value(data.value)
             .data(data.data.to_vec())
-            .nonce(curr_nonce)
+            .nonce(cur_nonce)
             .max_fee_per_gas(data.max_price - priority_fee)
             .max_priority_fee_per_gas(*priority_fee))
     }

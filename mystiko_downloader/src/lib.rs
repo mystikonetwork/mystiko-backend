@@ -39,7 +39,7 @@ pub struct DownloaderBuilder {
 
 impl Downloader {
     pub async fn download(&mut self, url: &str, download_options: Option<DownloadOptions>) -> Result<PathBuf> {
-        let options = download_options.unwrap_or(DownloadOptions::default());
+        let options = download_options.unwrap_or_default();
         let is_compressed = url.ends_with(".gz") || url.ends_with(".tgz") || url.ends_with(".tar.gz");
         let file_path = self.download_raw(url, options.clone()).await?;
         if is_compressed && !options.skip_decompression {
