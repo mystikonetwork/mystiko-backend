@@ -5,6 +5,7 @@ use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::transaction::request::TransactionRequest;
 use ethers_core::types::transaction::response::TransactionReceipt;
 use ethers_core::types::{BlockNumber, TxHash, U256, U64};
+use log::info;
 // use ethers_middleware::gas_escalator::GasEscalatorMiddleware;
 // use ethers_middleware::gas_escalator::{Frequency, GeometricGasPrice};
 use crate::tx_manager::types::{TransactionData, TransactionMiddleware, TransactionMiddlewareResult};
@@ -15,7 +16,6 @@ use ethers_signers::{LocalWallet, Signer};
 use std::cmp::{max, min};
 use std::marker::PhantomData;
 use std::time::Duration;
-use tracing::info;
 use typed_builder::TypedBuilder;
 
 #[derive(Debug, Clone, TypedBuilder)]
