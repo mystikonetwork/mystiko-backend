@@ -22,9 +22,9 @@ pub struct TxManagerChainConfig {
     #[builder(default)]
     pub max_priority_fee_per_gas: Option<u64>,
 
-    #[serde(default = "default_force_gas_price")]
-    #[builder(default = default_force_gas_price())]
-    pub force_gas_price: bool,
+    #[serde(default)]
+    #[builder(default)]
+    pub force_gas_price: Option<bool>,
 
     #[serde(default = "default_confirm_interval_secs")]
     #[builder(default = default_confirm_interval_secs())]
@@ -50,6 +50,10 @@ impl TxManagerChainConfig {
         }
 
         Ok(())
+    }
+
+    pub fn get_force_gas_price(&self, chain_id: u64) -> bool {
+        self.force_gas_price.unwrap_or(default_force_gas_price(chain_id))
     }
 }
 
@@ -108,8 +112,11 @@ impl TxManagerConfig {
     }
 }
 
-fn default_force_gas_price() -> bool {
-    false
+fn default_force_gas_price(chain_id: u64) -> bool {
+    match chain_id {
+        56 | 97 | 250 | 4002 => true,
+        _ => false,
+    }
 }
 
 fn default_confirm_interval_secs() -> u64 {

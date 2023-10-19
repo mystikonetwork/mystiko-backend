@@ -36,9 +36,9 @@ pub struct TxManager<P> {
 
 impl TxManagerBuilder {
     pub async fn build<P: JsonRpcClient>(&self, provider: &Provider<P>) -> TransactionMiddlewareResult<TxManager<P>> {
-        let chain_config = self.config.chain_config(&self.chain_id)?;
-        let support_1559 =
-            !chain_config.force_gas_price && ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok();
+        let chain_config: TxManagerChainConfig = self.config.chain_config(&self.chain_id)?;
+        let support_1559 = !chain_config.get_force_gas_price(self.chain_id)
+            && ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok();
         Ok(TxManager {
             chain_id: self.chain_id,
             config: chain_config.clone(),
@@ -107,13 +107,13 @@ where
             self.send_1559_tx(tx_request, provider).await
         } else {
             // todo change gas
-            let gas_price = self.gas_price_legacy_tx(provider).await?;
-            if gas_price > data.max_price {
-                return Err(TransactionMiddlewareError::GasPriceError(format!(
-                    "gas price too high provider gas_price: {:?} data max_price: {:?}",
-                    gas_price, data.max_price
-                )));
-            }
+            // let gas_price = self.gas_price_legacy_tx(provider).await?;
+            // if gas_price > data.max_price {
+            //     return Err(TransactionMiddlewareError::GasPriceError(format!(
+            //         "gas price too high provider gas_price: {:?} data max_price: {:?}",
+            //         gas_price, data.max_price
+            //     )));
+            // }
             let mut tx_request = self.build_legacy_tx(data, provider).await?;
             tx_request.gas = Some(gas_limit);
             self.send_legacy_tx(tx_request, provider).await
