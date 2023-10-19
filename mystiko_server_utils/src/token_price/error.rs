@@ -9,8 +9,10 @@ pub enum PriceMiddlewareError {
     FileError(String),
     #[error("api key not configure error")]
     ApiKeyNotConfigureError,
-    #[error("token: {0} not support error")]
+    #[error("token={0} not support error")]
     TokenNotSupportError(String),
+    #[error("token={0} price not init error")]
+    TokenPriceNotInitError(String),
     #[error("server response error code: {0}")]
     ResponseError(u64),
     #[error("internal error")]

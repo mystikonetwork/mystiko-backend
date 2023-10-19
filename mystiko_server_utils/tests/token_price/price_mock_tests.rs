@@ -117,7 +117,10 @@ async fn test_price_error() {
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
     let price = tp.price("ETH").await;
     mock.create_async().await;
-    assert!(matches!(price.err().unwrap(), PriceMiddlewareError::ReqwestError(_)));
+    assert_eq!(
+        price.err().unwrap().to_string(),
+        PriceMiddlewareError::TokenPriceNotInitError("ETH".to_string()).to_string()
+    );
 
     let currency_map = json!({
         "date": 10,
@@ -132,7 +135,10 @@ async fn test_price_error() {
         .await;
     let price = tp.price("ETH").await;
     mock.create_async().await;
-    assert!(matches!(price.err().unwrap(), PriceMiddlewareError::ReqwestError(_)));
+    assert_eq!(
+        price.err().unwrap().to_string(),
+        PriceMiddlewareError::TokenPriceNotInitError("ETH".to_string()).to_string()
+    );
 }
 
 #[tokio::test]
@@ -156,7 +162,10 @@ async fn test_price_error2() {
         .await;
     let price = tp.price("ETH").await;
     mock.create_async().await;
-    assert!(matches!(price.err().unwrap(), PriceMiddlewareError::ResponseError(_)));
+    assert_eq!(
+        price.err().unwrap().to_string(),
+        PriceMiddlewareError::TokenPriceNotInitError("ETH".to_string()).to_string()
+    );
 }
 
 #[tokio::test]
@@ -165,11 +174,16 @@ async fn test_tokne_price_not_init_err() {
     default_cfg.base_url = "http://error.com".to_string();
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
     let price = tp.price("ETH").await;
-    assert!(matches!(price.err().unwrap(), PriceMiddlewareError::ReqwestError(_)));
-
+    assert_eq!(
+        price.err().unwrap().to_string(),
+        PriceMiddlewareError::TokenPriceNotInitError("ETH".to_string()).to_string()
+    );
     let amount_a = U256::from(10000000);
     let amount_b = tp.swap("USDT", 6, amount_a, "USDT", 6).await;
-    assert!(matches!(amount_b.err().unwrap(), PriceMiddlewareError::ReqwestError(_)));
+    assert_eq!(
+        amount_b.err().unwrap().to_string(),
+        PriceMiddlewareError::TokenPriceNotInitError("USDT".to_string()).to_string()
+    );
 }
 
 #[tokio::test]
@@ -216,8 +230,12 @@ async fn test_internal_error() {
         price.err().unwrap(),
         PriceMiddlewareError::TokenNotSupportError(_)
     ));
+
     let price = tp.price("mMATIC").await;
-    assert!(matches!(price.err().unwrap(), PriceMiddlewareError::InternalError));
+    assert_eq!(
+        price.err().unwrap().to_string(),
+        PriceMiddlewareError::TokenPriceNotInitError("mMATIC".to_string()).to_string()
+    );
 }
 
 pub async fn create_mock_token_price_server(id: Option<bool>, price: Option<bool>) -> (ServerGuard, Vec<Mock>) {

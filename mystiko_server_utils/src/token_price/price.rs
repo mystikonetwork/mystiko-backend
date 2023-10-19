@@ -4,6 +4,7 @@ use crate::token_price::query::QueryApiInstance;
 use crate::token_price::utils::{calc_token_precision, f64_to_u256, u256_to_f64};
 use crate::token_price::{PriceMiddleware, PriceMiddlewareResult};
 use ethers_core::types::U256;
+use log::warn;
 use std::collections::HashMap;
 use std::ops::{Div, Mul};
 use std::time::SystemTime;
@@ -76,10 +77,11 @@ impl TokenPrice {
 
     async fn try_update_token_prices(&self) -> PriceMiddlewareResult<()> {
         if self.should_do_update().await? {
-            self.update_token_prices().await
-        } else {
-            Ok(())
+            if let Err(e) = self.update_token_prices().await {
+                warn!("Update token price meet error: {:?}", e);
+            }
         }
+        Ok(())
     }
 
     async fn should_do_update(&self) -> PriceMiddlewareResult<bool> {
@@ -108,6 +110,11 @@ impl TokenPrice {
             .coin_market_cap_ids
             .get(symbol)
             .ok_or(PriceMiddlewareError::TokenNotSupportError(symbol.to_string()))
-            .and_then(|id| data.prices.get(id).copied().ok_or(PriceMiddlewareError::InternalError))
+            .and_then(|id| {
+                data.prices
+                    .get(id)
+                    .copied()
+                    .ok_or(PriceMiddlewareError::TokenPriceNotInitError(symbol.to_string()))
+            })
     }
 }
