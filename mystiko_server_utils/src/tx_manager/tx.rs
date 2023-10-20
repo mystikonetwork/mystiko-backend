@@ -102,8 +102,8 @@ where
         tx_hash: &TxHash,
         provider: &Provider<P>,
     ) -> TransactionMiddlewareResult<TransactionReceipt> {
-        info!("confirm tx {:?}", tx_hash);
         let max_count = self.config.get_max_confirm_count(self.chain_id);
+        info!("confirm tx {:?} with max wait count {:?}", tx_hash, max_count);
         self.confirm_tx(tx_hash, max_count, provider).await
     }
 }
@@ -126,16 +126,19 @@ where
             tx_request.gas = Some(gas_limit);
             self.send_1559_tx(tx_request, provider).await
         } else {
+            let mut tx_request = self.build_legacy_tx(data, provider).await?;
+            tx_request.gas = Some(gas_limit);
+
             if self.config.lower_gas_price_mod {
-                let result = self.try_send_lower_gas_price_tx(data, gas_limit, provider).await;
+                let result = self
+                    .try_send_lower_gas_price_tx(data, tx_request.clone(), provider)
+                    .await;
                 match result {
                     Ok(tx_hash) => return Ok(tx_hash),
                     Err(e) => warn!("try send lower gas price tx failed: {:?}", e),
                 }
             }
 
-            let mut tx_request = self.build_legacy_tx(data, provider).await?;
-            tx_request.gas = Some(gas_limit);
             self.send_legacy_tx(tx_request, provider).await
         }
     }
@@ -143,17 +146,23 @@ where
     async fn try_send_lower_gas_price_tx(
         &self,
         data: &TransactionData,
-        gas_limit: U256,
+        tx_request: TransactionRequest,
         provider: &Provider<P>,
     ) -> TransactionMiddlewareResult<TxHash> {
-        let mut tx_request = self.build_legacy_tx(data, provider).await?;
-        tx_request.gas = Some(gas_limit);
+        let mut tx = tx_request;
         let percentage = self.config.get_lower_gas_price_percentage(self.chain_id);
         let gas_price = data.max_price.mul(percentage).div(100);
-        info!("try send lower gas price transaction with gas price: {:?}", gas_price);
-        tx_request.gas_price = Some(gas_price);
-        let tx_hash = self.send_legacy_tx(tx_request, provider).await?;
+        info!(
+            "try send lower gas price transaction with gas price: {:?}, nonce: {:?}",
+            gas_price, tx.nonce
+        );
+        tx.gas_price = Some(gas_price);
+        let tx_hash = self.send_legacy_tx(tx, provider).await?;
         let max_count = self.config.get_lower_gas_price_confirm_count(self.chain_id);
+        info!(
+            "try confirm lower gas price tx {:?} with max wait count {:?}",
+            tx_hash, max_count
+        );
         let _ = self.confirm_tx(&tx_hash, max_count, provider).await?;
         Ok(tx_hash)
     }

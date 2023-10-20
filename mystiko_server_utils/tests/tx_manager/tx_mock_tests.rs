@@ -234,14 +234,16 @@ async fn test_send_legacy_try_lower_gas_price() {
     let wrong_data = json!(null);
     // try send transaction with lower gas price error, fallback to normal gas price failed
     mock.push(wrong_data.clone()).unwrap();
+    mock.push(wrong_data.clone()).unwrap();
     mock.push(nonce).unwrap();
     let result = tx.send(&tx_data, &provider).await;
     assert!(matches!(
         result.err().unwrap(),
-        TransactionMiddlewareError::NonceError(_)
+        TransactionMiddlewareError::SendTxError(_)
     ));
 
     // try send transaction with lower gas price confirm error, fallback to normal gas price failed
+    mock.push(wrong_data.clone()).unwrap();
     mock.push(wrong_data.clone()).unwrap();
     mock.push(block_number).unwrap();
     mock.push(transaction.clone()).unwrap();
@@ -250,7 +252,7 @@ async fn test_send_legacy_try_lower_gas_price() {
     let result = tx.send(&tx_data, &provider).await;
     assert!(matches!(
         result.err().unwrap(),
-        TransactionMiddlewareError::NonceError(_)
+        TransactionMiddlewareError::SendTxError(_)
     ));
 
     // try send transaction with lower gas price error, fallback to normal gas price success
@@ -258,7 +260,6 @@ async fn test_send_legacy_try_lower_gas_price() {
     mock.push(block_number).unwrap();
     mock.push(transaction.clone()).unwrap();
     mock.push(tx_hash).unwrap();
-    mock.push(nonce).unwrap();
     mock.push(wrong_data).unwrap();
     mock.push(nonce).unwrap();
     let hash = tx.send(&tx_data, &provider).await.unwrap();
