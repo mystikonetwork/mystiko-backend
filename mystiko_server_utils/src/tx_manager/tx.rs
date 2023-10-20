@@ -5,7 +5,7 @@ use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::transaction::request::TransactionRequest;
 use ethers_core::types::transaction::response::TransactionReceipt;
 use ethers_core::types::{BlockNumber, TxHash, U256, U64};
-use log::info;
+use log::{info, warn};
 // use ethers_middleware::gas_escalator::GasEscalatorMiddleware;
 // use ethers_middleware::gas_escalator::{Frequency, GeometricGasPrice};
 use crate::tx_manager::types::{TransactionData, TransactionMiddleware, TransactionMiddlewareResult};
@@ -15,6 +15,7 @@ use ethers_providers::{JsonRpcClient, Middleware, Provider};
 use ethers_signers::{LocalWallet, Signer};
 use std::cmp::{max, min};
 use std::marker::PhantomData;
+use std::ops::{Div, Mul};
 use std::time::Duration;
 use typed_builder::TypedBuilder;
 
@@ -36,9 +37,9 @@ pub struct TxManager<P> {
 
 impl TxManagerBuilder {
     pub async fn build<P: JsonRpcClient>(&self, provider: &Provider<P>) -> TransactionMiddlewareResult<TxManager<P>> {
-        let chain_config = self.config.chain_config(&self.chain_id)?;
-        let support_1559 =
-            !chain_config.force_gas_price && ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok();
+        let chain_config: TxManagerChainConfig = self.config.chain_config(&self.chain_id)?;
+        let support_1559 = !chain_config.get_force_gas_price(self.chain_id)
+            && ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok();
         Ok(TxManager {
             chain_id: self.chain_id,
             config: chain_config.clone(),
@@ -93,6 +94,25 @@ where
             data.to, data.gas, data.max_price
         );
 
+        self.send_tx(data, provider).await
+    }
+
+    async fn confirm(
+        &self,
+        tx_hash: &TxHash,
+        provider: &Provider<P>,
+    ) -> TransactionMiddlewareResult<TransactionReceipt> {
+        let max_count = self.config.get_max_confirm_count(self.chain_id);
+        info!("confirm tx {:?} with max wait count {:?}", tx_hash, max_count);
+        self.confirm_tx(tx_hash, max_count, provider).await
+    }
+}
+
+impl<P> TxManager<P>
+where
+    P: JsonRpcClient + Send + Sync,
+{
+    async fn send_tx(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<TxHash> {
         let gas_limit = data.gas * (100 + self.config.gas_limit_reserve_percentage) / 100;
         if self.support_1559 {
             let (max_fee_per_gas, priority_fee) = self.gas_price_1559_tx(provider).await?;
@@ -106,28 +126,54 @@ where
             tx_request.gas = Some(gas_limit);
             self.send_1559_tx(tx_request, provider).await
         } else {
-            // todo change gas
-            let gas_price = self.gas_price_legacy_tx(provider).await?;
-            if gas_price > data.max_price {
-                return Err(TransactionMiddlewareError::GasPriceError(format!(
-                    "gas price too high provider gas_price: {:?} data max_price: {:?}",
-                    gas_price, data.max_price
-                )));
-            }
             let mut tx_request = self.build_legacy_tx(data, provider).await?;
             tx_request.gas = Some(gas_limit);
+
+            if self.config.lower_gas_price_mod {
+                let result = self
+                    .try_send_lower_gas_price_tx(data, tx_request.clone(), provider)
+                    .await;
+                match result {
+                    Ok(tx_hash) => return Ok(tx_hash),
+                    Err(e) => warn!("try send lower gas price tx failed: {:?}", e),
+                }
+            }
+
             self.send_legacy_tx(tx_request, provider).await
         }
     }
 
-    async fn confirm(
+    async fn try_send_lower_gas_price_tx(
+        &self,
+        data: &TransactionData,
+        tx_request: TransactionRequest,
+        provider: &Provider<P>,
+    ) -> TransactionMiddlewareResult<TxHash> {
+        let mut tx = tx_request;
+        let percentage = self.config.get_lower_gas_price_percentage(self.chain_id);
+        let gas_price = data.max_price.mul(percentage).div(100);
+        info!(
+            "try send lower gas price transaction with gas price: {:?}, nonce: {:?}",
+            gas_price, tx.nonce
+        );
+        tx.gas_price = Some(gas_price);
+        let tx_hash = self.send_legacy_tx(tx, provider).await?;
+        let max_count = self.config.get_lower_gas_price_confirm_count(self.chain_id);
+        info!(
+            "try confirm lower gas price tx {:?} with max wait count {:?}",
+            tx_hash, max_count
+        );
+        let _ = self.confirm_tx(&tx_hash, max_count, provider).await?;
+        Ok(tx_hash)
+    }
+
+    async fn confirm_tx(
         &self,
         tx_hash: &TxHash,
+        max_count: u32,
         provider: &Provider<P>,
     ) -> TransactionMiddlewareResult<TransactionReceipt> {
-        info!("confirm tx {:?}", tx_hash);
-
-        for _ in 0..self.config.max_confirm_count {
+        for _ in 0..max_count {
             tokio::time::sleep(Duration::from_secs(self.config.confirm_interval_secs)).await;
             let tx_first = provider
                 .get_transaction(*tx_hash)
@@ -179,15 +225,10 @@ where
 
         Err(TransactionMiddlewareError::ConfirmTxError(format!(
             "reach max confirm count: {:?}",
-            self.config.max_confirm_count
+            max_count
         )))
     }
-}
 
-impl<P> TxManager<P>
-where
-    P: JsonRpcClient + Send + Sync,
-{
     async fn gas_price_1559_tx(&self, provider: &Provider<P>) -> Result<(U256, U256)> {
         let gas_oracle = ProviderOracle::new(provider);
 

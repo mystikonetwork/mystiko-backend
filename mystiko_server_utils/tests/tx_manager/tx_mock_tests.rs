@@ -113,7 +113,69 @@ async fn test_send_1559_tx() {
 }
 
 #[tokio::test]
-async fn test_send_legacy_tx() {
+async fn test_send_legacy_tx_without_lower_gas_price() {
+    let (provider, mock) = Provider::mocked();
+
+    let nonce = U256::from(100);
+    let price = U256::from(1000000);
+    let transaction = get_transaction();
+    let transaction_receipt = get_transaction_receipt();
+    let value = ethers_core::utils::parse_ether("1").unwrap();
+    let max_gas_price = U256::from(100_000_000_000u64);
+    let gas = U256::from(100_000_000_000u64);
+    let tx_hash = H256::from_str("0x090b19818d9d087a49c3d2ecee4829ee4acea46089c1381ac5e588188627466d").unwrap();
+    let chain_id = 2000u64;
+    let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
+    let to_address = wallet.address();
+    let mut cfg = TxManagerConfig::new(None).unwrap();
+    cfg.chains.insert(
+        chain_id,
+        TxManagerChainConfig::builder()
+            .lower_gas_price_mod(false)
+            .confirm_interval_secs(1_u64)
+            .build(),
+    );
+    let builder = TxManagerBuilder::builder()
+        .config(cfg)
+        .chain_id(chain_id)
+        .wallet(wallet)
+        .build();
+
+    let tx = builder.build(&provider).await.unwrap();
+    assert!(!tx.support_1559());
+
+    mock.push(price).unwrap();
+    let gas_price = tx.gas_price(&provider).await.unwrap();
+    assert_eq!(gas_price.to_string(), "1000000");
+
+    mock.push(gas).unwrap();
+    mock.push(price).unwrap();
+    let mut tx_data = TransactionData::builder()
+        .to(to_address)
+        .data(vec![].into())
+        .value(value)
+        .gas(U256::zero())
+        .max_price(max_gas_price)
+        .build();
+    let gas = tx.estimate_gas(&tx_data, &provider).await.unwrap();
+    assert_eq!(gas.to_string(), "100000000000");
+
+    let gas = U256::from(100_000_000_000u64);
+    let block_number = U64::from(6203276);
+    mock.push(transaction_receipt.clone()).unwrap();
+    mock.push(block_number).unwrap();
+    mock.push(transaction.clone()).unwrap();
+    mock.push(tx_hash).unwrap();
+    mock.push(nonce).unwrap();
+    tx_data.gas = gas;
+    let hash = tx.send(&tx_data, &provider).await.unwrap();
+    assert_eq!(hash, tx_hash);
+    let receipt = tx.confirm(&hash, &provider).await.unwrap();
+    assert_eq!(receipt, transaction_receipt);
+}
+
+#[tokio::test]
+async fn test_send_legacy_try_lower_gas_price() {
     let (provider, mock) = Provider::mocked();
 
     let nonce = U256::from(100);
@@ -157,6 +219,7 @@ async fn test_send_legacy_tx() {
     let gas = tx.estimate_gas(&tx_data, &provider).await.unwrap();
     assert_eq!(gas.to_string(), "100000000000");
 
+    // try send transaction with lower gas price success
     let gas = U256::from(100_000_000_000u64);
     let block_number = U64::from(6203276);
     mock.push(transaction_receipt.clone()).unwrap();
@@ -164,8 +227,41 @@ async fn test_send_legacy_tx() {
     mock.push(transaction.clone()).unwrap();
     mock.push(tx_hash).unwrap();
     mock.push(nonce).unwrap();
-    mock.push(price).unwrap();
     tx_data.gas = gas;
+    let hash = tx.send(&tx_data, &provider).await.unwrap();
+    assert_eq!(hash, tx_hash);
+
+    let wrong_data = json!(null);
+    // try send transaction with lower gas price error, fallback to normal gas price failed
+    mock.push(wrong_data.clone()).unwrap();
+    mock.push(wrong_data.clone()).unwrap();
+    mock.push(nonce).unwrap();
+    let result = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        result.err().unwrap(),
+        TransactionMiddlewareError::SendTxError(_)
+    ));
+
+    // try send transaction with lower gas price confirm error, fallback to normal gas price failed
+    mock.push(wrong_data.clone()).unwrap();
+    mock.push(wrong_data.clone()).unwrap();
+    mock.push(block_number).unwrap();
+    mock.push(transaction.clone()).unwrap();
+    mock.push(tx_hash).unwrap();
+    mock.push(nonce).unwrap();
+    let result = tx.send(&tx_data, &provider).await;
+    assert!(matches!(
+        result.err().unwrap(),
+        TransactionMiddlewareError::SendTxError(_)
+    ));
+
+    // try send transaction with lower gas price error, fallback to normal gas price success
+    mock.push(transaction_receipt.clone()).unwrap();
+    mock.push(block_number).unwrap();
+    mock.push(transaction.clone()).unwrap();
+    mock.push(tx_hash).unwrap();
+    mock.push(wrong_data).unwrap();
+    mock.push(nonce).unwrap();
     let hash = tx.send(&tx_data, &provider).await.unwrap();
     assert_eq!(hash, tx_hash);
     let receipt = tx.confirm(&hash, &provider).await.unwrap();
@@ -304,24 +400,6 @@ async fn test_legacy_tx_with_error() {
         TransactionMiddlewareError::EstimateGasError(_)
     ));
 
-    let gas = U256::from(100_000_000_000u64);
-    tx_data.gas = gas;
-    let tx_hash = tx.send(&tx_data, &provider).await;
-    assert!(matches!(
-        tx_hash.err().unwrap(),
-        TransactionMiddlewareError::GasPriceError(_)
-    ));
-
-    mock.push(price).unwrap();
-    let max_gas_price = U256::from(1u64);
-    tx_data.max_price = max_gas_price;
-    let tx_hash = tx.send(&tx_data, &provider).await;
-    assert!(matches!(
-        tx_hash.err().unwrap(),
-        TransactionMiddlewareError::GasPriceError(_)
-    ));
-
-    mock.push(price).unwrap();
     let max_gas_price = U256::from(100_000_000_000u64);
     tx_data.max_price = max_gas_price;
     let tx_hash = tx.send(&tx_data, &provider).await;
