@@ -34,9 +34,21 @@ pub struct TxManagerChainConfig {
     #[builder(default = default_confirm_blocks())]
     pub confirm_blocks: u32,
 
-    #[serde(default = "default_max_confirm_count")]
-    #[builder(default = default_max_confirm_count())]
-    pub max_confirm_count: u32,
+    #[serde(default)]
+    #[builder(default)]
+    pub max_confirm_count: Option<u32>,
+
+    #[serde(default = "default_lower_gas_price_mod")]
+    #[builder(default = default_lower_gas_price_mod())]
+    pub lower_gas_price_mod: bool,
+
+    #[serde(default)]
+    #[builder(default)]
+    pub max_lower_gas_price_confirm_count: Option<u32>,
+
+    #[serde(default)]
+    #[builder(default)]
+    pub lower_gas_price_percentage: Option<u32>,
 }
 
 impl TxManagerChainConfig {
@@ -49,11 +61,32 @@ impl TxManagerChainConfig {
             }
         }
 
+        if let Some(percentage) = self.lower_gas_price_percentage {
+            if percentage > 85 {
+                return Err(TransactionMiddlewareError::ConfigError(
+                    "lower_gas_price_percentage must be less than 85".to_string(),
+                ));
+            }
+        }
+
         Ok(())
     }
 
     pub fn get_force_gas_price(&self, chain_id: u64) -> bool {
         self.force_gas_price.unwrap_or(default_force_gas_price(chain_id))
+    }
+
+    pub fn get_max_confirm_count(&self, chain_id: u64) -> u32 {
+        self.max_confirm_count.unwrap_or(default_max_confirm_count(chain_id))
+    }
+
+    pub fn get_lower_gas_price_confirm_count(&self, chain_id: u64) -> u32 {
+        default_lower_gas_price_confirm_count(chain_id)
+    }
+
+    pub fn get_lower_gas_price_percentage(&self, chain_id: u64) -> u32 {
+        self.lower_gas_price_percentage
+            .unwrap_or(default_lower_gas_price_percentage(chain_id))
     }
 }
 
@@ -113,10 +146,7 @@ impl TxManagerConfig {
 }
 
 fn default_force_gas_price(chain_id: u64) -> bool {
-    match chain_id {
-        56 | 97 | 250 | 4002 => true,
-        _ => false,
-    }
+    matches!(chain_id, 56 | 97 | 250 | 4002)
 }
 
 fn default_confirm_interval_secs() -> u64 {
@@ -127,8 +157,36 @@ fn default_confirm_blocks() -> u32 {
     5
 }
 
-fn default_max_confirm_count() -> u32 {
-    100
+fn default_lower_gas_price_confirm_count(chain_id: u64) -> u32 {
+    block_count_an_hour_and_half(chain_id) / 9
+}
+
+fn default_max_confirm_count(chain_id: u64) -> u32 {
+    block_count_an_hour_and_half(chain_id) / 6
+}
+
+fn block_count_an_hour_and_half(chain_id: u64) -> u32 {
+    match chain_id {
+        1 | 5 => 500,
+        56 | 97 => 1875,
+        137 | 80001 => 2500,
+        8453 | 84531 => 2500,
+        43113 => 1875,
+        4002 => 3125,
+        1287 => 292,
+        _ => 2000,
+    }
+}
+
+fn default_lower_gas_price_mod() -> bool {
+    true
+}
+
+fn default_lower_gas_price_percentage(chain_id: u64) -> u32 {
+    match chain_id {
+        56 | 97 => 35,
+        _ => 50,
+    }
 }
 
 fn default_gas_limit_reserve_percentage() -> u32 {
