@@ -29,7 +29,7 @@ async fn test_send_1559_tx() {
         .wallet(wallet)
         .build();
     let tx = builder.build(Some(true), &provider).await.unwrap();
-    assert!(tx.is_eip1559());
+    assert!(tx.tx_eip1559());
 
     let gas_price = tx.gas_price(&provider).await.unwrap();
     assert!(gas_price > U256::zero());
@@ -69,13 +69,8 @@ async fn test_send_legacy_tx() {
     let wallet = wallet.with_chain_id(chain_id);
 
     let mut cfg = TxManagerConfig::new(None).unwrap();
-    cfg.chains.insert(
-        chain_id,
-        TxManagerChainConfig::builder()
-            .force_gas_price(true)
-            .confirm_blocks(0_u32)
-            .build(),
-    );
+    cfg.chains
+        .insert(chain_id, TxManagerChainConfig::builder().confirm_blocks(0_u32).build());
 
     let to = anvil.addresses()[1];
     let value = ethers_core::utils::parse_ether("1").unwrap();
@@ -86,7 +81,7 @@ async fn test_send_legacy_tx() {
         .wallet(wallet)
         .build();
     let tx = builder.build(Some(false), &provider).await.unwrap();
-    assert!(!tx.is_eip1559());
+    assert!(!tx.tx_eip1559());
 
     let gas_price = tx.gas_price(&provider).await.unwrap();
     assert!(gas_price > U256::zero());

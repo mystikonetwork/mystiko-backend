@@ -17,7 +17,7 @@ pub struct TransactionData {
 
 #[async_trait::async_trait]
 pub trait TransactionMiddleware<P: JsonRpcClient>: Debug + Send + Sync {
-    fn is_eip1559(&self) -> bool;
+    fn tx_eip1559(&self) -> bool;
     async fn gas_price(&self, provider: &Provider<P>) -> TransactionMiddlewareResult<U256>;
     async fn estimate_gas(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<U256>;
     async fn send(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<TxHash>;

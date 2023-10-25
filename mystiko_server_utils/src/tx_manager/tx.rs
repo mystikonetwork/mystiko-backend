@@ -29,25 +29,25 @@ pub struct TxManagerBuilder {
 #[derive(Debug)]
 pub struct TxManager<P> {
     chain_id: u64,
+    tx_eip1559: bool,
     config: TxManagerChainConfig,
     wallet: LocalWallet,
-    is_eip1559: bool,
     _marker: PhantomData<P>,
 }
 
 impl TxManagerBuilder {
     pub async fn build<P: JsonRpcClient>(
         &self,
-        is_eip1559: Option<bool>,
+        tx_eip1559: Option<bool>,
         provider: &Provider<P>,
     ) -> TransactionMiddlewareResult<TxManager<P>> {
         let chain_config: TxManagerChainConfig = self.config.chain_config(&self.chain_id)?;
-        let is_eip1559 = is_eip1559.unwrap_or(ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok());
+        let tx_eip1559 = tx_eip1559.unwrap_or(ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok());
         Ok(TxManager {
             chain_id: self.chain_id,
             config: chain_config.clone(),
             wallet: self.wallet.clone(),
-            is_eip1559,
+            tx_eip1559,
             _marker: Default::default(),
         })
     }
@@ -58,12 +58,12 @@ impl<P> TransactionMiddleware<P> for TxManager<P>
 where
     P: JsonRpcClient + Send + Sync,
 {
-    fn is_eip1559(&self) -> bool {
-        self.is_eip1559
+    fn tx_eip1559(&self) -> bool {
+        self.tx_eip1559
     }
 
     async fn gas_price(&self, provider: &Provider<P>) -> TransactionMiddlewareResult<U256> {
-        if self.is_eip1559 {
+        if self.tx_eip1559 {
             let (max_fee_per_gas, priority_fee) = self.gas_price_1559_tx(provider).await?;
             Ok(max_fee_per_gas + priority_fee)
         } else {
@@ -72,7 +72,7 @@ where
     }
 
     async fn estimate_gas(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<U256> {
-        let typed_tx = match self.is_eip1559 {
+        let typed_tx = match self.tx_eip1559 {
             true => {
                 let priority_fee = self.config.min_priority_fee_per_gas.unwrap_or_else(|| 100000000_u64);
                 let tx = self.build_1559_tx(data, &priority_fee.into(), provider).await?;
@@ -117,7 +117,7 @@ where
 {
     async fn send_tx(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<TxHash> {
         let gas_limit = data.gas * (100 + self.config.gas_limit_reserve_percentage) / 100;
-        if self.is_eip1559 {
+        if self.tx_eip1559 {
             let (max_fee_per_gas, priority_fee) = self.gas_price_1559_tx(provider).await?;
             if max_fee_per_gas + priority_fee > data.max_price {
                 return Err(TransactionMiddlewareError::GasPriceError(format!(
