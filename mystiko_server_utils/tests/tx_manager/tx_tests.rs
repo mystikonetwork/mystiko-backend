@@ -28,8 +28,8 @@ async fn test_send_1559_tx() {
         .chain_id(chain_id.as_u64())
         .wallet(wallet)
         .build();
-    let tx = builder.build(&provider).await.unwrap();
-    assert!(tx.support_1559());
+    let tx = builder.build(Some(true), &provider).await.unwrap();
+    assert!(tx.is_eip1559());
 
     let gas_price = tx.gas_price(&provider).await.unwrap();
     assert!(gas_price > U256::zero());
@@ -85,8 +85,8 @@ async fn test_send_legacy_tx() {
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build(&provider).await.unwrap();
-    assert!(!tx.support_1559());
+    let tx = builder.build(Some(false), &provider).await.unwrap();
+    assert!(!tx.is_eip1559());
 
     let gas_price = tx.gas_price(&provider).await.unwrap();
     assert!(gas_price > U256::zero());
