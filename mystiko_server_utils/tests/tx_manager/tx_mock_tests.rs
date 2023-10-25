@@ -34,7 +34,7 @@ async fn test_gas_price() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build(&provider).await.unwrap();
+    let tx = builder.build(Some(true), &provider).await.unwrap();
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
@@ -71,8 +71,8 @@ async fn test_send_1559_tx() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build(&provider).await.unwrap();
-    assert!(tx.support_1559());
+    let tx = builder.build(Some(true), &provider).await.unwrap();
+    assert!(tx.tx_eip1559());
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
@@ -141,8 +141,8 @@ async fn test_send_legacy_tx_without_lower_gas_price() {
         .wallet(wallet)
         .build();
 
-    let tx = builder.build(&provider).await.unwrap();
-    assert!(!tx.support_1559());
+    let tx = builder.build(Some(false), &provider).await.unwrap();
+    assert!(!tx.tx_eip1559());
 
     mock.push(price).unwrap();
     let gas_price = tx.gas_price(&provider).await.unwrap();
@@ -200,8 +200,8 @@ async fn test_send_legacy_try_lower_gas_price() {
         .wallet(wallet)
         .build();
 
-    let tx = builder.build(&provider).await.unwrap();
-    assert!(!tx.support_1559());
+    let tx = builder.build(Some(false), &provider).await.unwrap();
+    assert!(!tx.tx_eip1559());
 
     mock.push(price).unwrap();
     let gas_price = tx.gas_price(&provider).await.unwrap();
@@ -289,8 +289,8 @@ async fn test_1559_tx_with_error() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build(&provider).await.unwrap();
-    assert!(tx.support_1559());
+    let tx = builder.build(Some(true), &provider).await.unwrap();
+    assert!(tx.tx_eip1559());
 
     let gas_price = tx.gas_price(&provider).await;
     assert!(matches!(
@@ -375,8 +375,8 @@ async fn test_legacy_tx_with_error() {
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build(&provider).await.unwrap();
-    assert!(!tx.support_1559());
+    let tx = builder.build(Some(false), &provider).await.unwrap();
+    assert!(!tx.tx_eip1559());
 
     let gas_price = tx.gas_price(&provider).await;
     assert!(matches!(
@@ -444,8 +444,8 @@ async fn test_confirm_with_error() {
         .chain_id(chain_id)
         .wallet(wallet)
         .build();
-    let tx = builder.build(&provider).await.unwrap();
-    assert!(!tx.support_1559());
+    let tx = builder.build(Some(false), &provider).await.unwrap();
+    assert!(!tx.tx_eip1559());
 
     let tx_hash = H256::from_str("0x090b19818d9d087a49c3d2ecee4829ee4acea46089c1381ac5e588188627466d").unwrap();
     let receipt = tx.confirm(&tx_hash, &provider).await;
