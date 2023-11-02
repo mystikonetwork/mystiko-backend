@@ -78,7 +78,7 @@ impl TokenPrice {
     async fn try_update_token_prices(&self) -> PriceMiddlewareResult<()> {
         if self.should_do_update().await? {
             if let Err(e) = self.update_token_prices().await {
-                warn!("Update token price meet error: {:?}", e);
+                warn!("update token price failed: {:?}", e);
             }
         }
         Ok(())
