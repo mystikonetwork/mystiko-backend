@@ -11,7 +11,7 @@ use serde_json::json;
 use std::str::FromStr;
 
 #[tokio::test]
-async fn test_gas_price() {
+async fn test_min_priority_gas_price() {
     let (provider, mock) = Provider::mocked();
     let chain_id = 2000u64;
 
@@ -40,6 +40,91 @@ async fn test_gas_price() {
     mock.push(block.clone()).unwrap();
     let gas_price = tx.gas_price(&provider).await.unwrap();
     assert_eq!(gas_price.to_string(), "7000000137");
+}
+
+#[tokio::test]
+async fn test_max_priority_gas_price() {
+    let (provider, mock) = Provider::mocked();
+    let chain_id = 2000u64;
+
+    let mut cfg = TxManagerConfig::new(None).unwrap();
+    cfg.chains.insert(
+        chain_id,
+        TxManagerChainConfig::builder()
+            .min_priority_fee_per_gas(1_000_000_123_u64)
+            .max_priority_fee_per_gas(2_000_000_456_u64)
+            .build(),
+    );
+    let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
+    let builder = TxManagerBuilder::builder()
+        .config(cfg)
+        .chain_id(chain_id)
+        .wallet(wallet)
+        .build();
+
+    let block = get_1559_block();
+    let history = get_fee_history();
+
+    mock.push(history.clone()).unwrap();
+    mock.push(block.clone()).unwrap();
+    let tx = builder.build(Some(true), &provider).await.unwrap();
+
+    mock.push(history.clone()).unwrap();
+    mock.push(block.clone()).unwrap();
+    let gas_price = tx.gas_price(&provider).await.unwrap();
+    assert_eq!(gas_price.to_string(), "5000000470");
+}
+
+#[tokio::test]
+async fn test_min_gas_price_with_config() {
+    let (provider, mock) = Provider::mocked();
+    let chain_id = 2000u64;
+
+    let mut cfg = TxManagerConfig::new(None).unwrap();
+    cfg.chains.insert(
+        chain_id,
+        TxManagerChainConfig::builder().min_gas_price(2_000_000_123_u64).build(),
+    );
+    let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
+    let builder = TxManagerBuilder::builder()
+        .config(cfg)
+        .chain_id(chain_id)
+        .wallet(wallet)
+        .build();
+
+    let block = get_1559_block();
+    mock.push(block.clone()).unwrap();
+    let tx = builder.build(Some(false), &provider).await.unwrap();
+
+    let gas_price = U256::from(1_000_000_123_u64);
+    mock.push(block.clone()).unwrap();
+    mock.push(gas_price).unwrap();
+    let gas_price = tx.gas_price(&provider).await.unwrap();
+    assert_eq!(gas_price.to_string(), "2000000123");
+}
+
+#[tokio::test]
+async fn test_min_gas_price_without_config() {
+    let (provider, mock) = Provider::mocked();
+    let chain_id = 2000u64;
+
+    let cfg = TxManagerConfig::new(None).unwrap();
+    let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
+    let builder = TxManagerBuilder::builder()
+        .config(cfg)
+        .chain_id(chain_id)
+        .wallet(wallet)
+        .build();
+
+    let block = get_1559_block();
+    mock.push(block.clone()).unwrap();
+    let tx = builder.build(Some(false), &provider).await.unwrap();
+
+    let gas_price = U256::from(1_000_000_123_u64);
+    mock.push(block.clone()).unwrap();
+    mock.push(gas_price).unwrap();
+    let gas_price = tx.gas_price(&provider).await.unwrap();
+    assert_eq!(gas_price.to_string(), "1000000123");
 }
 
 #[tokio::test]
