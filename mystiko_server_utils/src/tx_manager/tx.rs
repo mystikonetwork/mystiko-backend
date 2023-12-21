@@ -74,7 +74,7 @@ where
     async fn estimate_gas(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<U256> {
         let typed_tx = match self.tx_eip1559 {
             true => {
-                let priority_fee = self.config.min_priority_fee_per_gas.unwrap_or_else(|| 100000000_u64);
+                let priority_fee = self.config.min_priority_fee_per_gas.unwrap_or_else(|| 10000000_u64);
                 let tx = self.build_1559_tx(data, &priority_fee.into(), provider).await?;
                 TypedTransaction::try_from(tx).expect("Failed to convert Eip1559TransactionRequest to TypedTransaction")
             }
@@ -96,7 +96,6 @@ where
             "send tx to {:?} with gas {:?} and gas_price {:?}",
             data.to, data.gas, data.max_price
         );
-
         self.send_tx(data, provider).await
     }
 
@@ -234,32 +233,32 @@ where
 
     async fn gas_price_1559_tx(&self, provider: &Provider<P>) -> Result<(U256, U256)> {
         let gas_oracle = ProviderOracle::new(provider);
-
         let (max_fee_per_gas, mut priority_fee) = gas_oracle
             .estimate_eip1559_fees()
             .await
             .map_err(|e| TransactionMiddlewareError::GasPriceError(e.to_string()))?;
-
         priority_fee = self
             .config
             .min_priority_fee_per_gas
             .map_or_else(|| priority_fee, |cfg_min| max(cfg_min.into(), priority_fee));
-
         priority_fee = self
             .config
             .max_priority_fee_per_gas
             .map_or_else(|| priority_fee, |cfg_max| min(cfg_max.into(), priority_fee));
-
         Ok((max_fee_per_gas, priority_fee))
     }
 
     async fn gas_price_legacy_tx(&self, provider: &Provider<P>) -> Result<U256> {
         let gas_oracle = ProviderOracle::new(provider);
-
-        gas_oracle
+        let mut gas_price = gas_oracle
             .fetch()
             .await
-            .map_err(|e| TransactionMiddlewareError::GasPriceError(e.to_string()))
+            .map_err(|e| TransactionMiddlewareError::GasPriceError(e.to_string()))?;
+        gas_price = self
+            .config
+            .min_gas_price
+            .map_or_else(|| gas_price, |cfg_min| max(cfg_min.into(), gas_price));
+        Ok(gas_price)
     }
 
     async fn build_legacy_tx(&self, data: &TransactionData, provider: &Provider<P>) -> Result<TransactionRequest> {
@@ -315,7 +314,7 @@ where
             .value(data.value)
             .data(data.data.to_vec())
             .nonce(cur_nonce)
-            .max_fee_per_gas(data.max_price - priority_fee)
+            .max_fee_per_gas(data.max_price)
             .max_priority_fee_per_gas(*priority_fee))
     }
 

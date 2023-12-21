@@ -22,6 +22,10 @@ pub struct TxManagerChainConfig {
     #[builder(default)]
     pub max_priority_fee_per_gas: Option<u64>,
 
+    #[serde(default)]
+    #[builder(default)]
+    pub min_gas_price: Option<u64>,
+
     #[serde(default = "default_confirm_interval_secs")]
     #[builder(default = default_confirm_interval_secs())]
     pub confirm_interval_secs: u64,
