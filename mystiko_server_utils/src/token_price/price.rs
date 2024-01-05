@@ -61,7 +61,7 @@ impl TokenPrice {
         let instance = QueryApiInstance::new(api_key, cfg.base_url.clone(), cfg.query_timeout_secs)?;
         let data = TokenPriceData::builder()
             .record_time(SystemTime::UNIX_EPOCH)
-            .prices(HashMap::new())
+            .prices(cfg.token_price.clone())
             .build();
         Ok(TokenPrice {
             ids: cfg.ids(),

@@ -76,11 +76,11 @@ where
             true => {
                 let priority_fee = self.config.min_priority_fee_per_gas.unwrap_or_else(|| 10000000_u64);
                 let tx = self.build_1559_tx(data, &priority_fee.into(), provider).await?;
-                TypedTransaction::try_from(tx).expect("Failed to convert Eip1559TransactionRequest to TypedTransaction")
+                TypedTransaction::Eip1559(tx)
             }
             false => {
                 let tx = self.build_legacy_tx(data, provider).await?;
-                TypedTransaction::try_from(tx).expect("Failed to convert TransactionRequest to TypedTransaction")
+                TypedTransaction::Legacy(tx)
             }
         };
 

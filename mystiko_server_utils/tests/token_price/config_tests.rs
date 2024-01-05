@@ -6,6 +6,7 @@ use std::path::PathBuf;
 async fn test_read_config() {
     let cfg = TokenPriceConfig::new("testnet", None).unwrap();
     assert_eq!(cfg.price_cache_ttl, Some(72000));
+    assert_eq!(cfg.token_price.get(&5990), Some(0.01).as_ref());
 
     let cfg = TokenPriceConfig::new("mainnet", None).unwrap();
     assert_eq!(cfg.price_cache_ttl, Some(1800));

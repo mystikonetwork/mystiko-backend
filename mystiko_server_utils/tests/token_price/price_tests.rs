@@ -2,7 +2,7 @@ extern crate mystiko_fs;
 
 use ethers_core::types::U256;
 use mystiko_server_utils::token_price::config::TokenPriceConfig;
-use mystiko_server_utils::token_price::price::TokenPrice;
+use mystiko_server_utils::token_price::{PriceMiddleware, TokenPrice};
 
 const COIN_MARKET_API_KEY: &str = "";
 

@@ -86,6 +86,14 @@ async fn test_get_token_id_error2() {
 }
 
 #[tokio::test]
+async fn test_default_token_price() {
+    let default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let tp = TokenPrice::new(&default_cfg, "").unwrap();
+    let price = tp.price("DEV").await.unwrap();
+    assert!(price > 0.0);
+}
+
+#[tokio::test]
 async fn test_price() {
     let (server, mocks) = create_mock_token_price_server(None, Some(true)).await;
     let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
