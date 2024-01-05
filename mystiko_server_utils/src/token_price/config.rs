@@ -7,7 +7,7 @@ use typed_builder::TypedBuilder;
 
 const TOKEN_PRICE_ENV_CONFIG_PREFIX: &str = "MYSTIKO_TOKEN_PRICE";
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, TypedBuilder)]
+#[derive(Debug, Clone, Deserialize, Serialize, TypedBuilder)]
 #[builder(field_defaults(setter(into)))]
 pub struct TokenPriceConfig {
     #[serde(default = "default_url")]
@@ -29,6 +29,10 @@ pub struct TokenPriceConfig {
     #[serde(default = "default_coin_market_cap_ids")]
     #[builder(default = default_coin_market_cap_ids())]
     pub coin_market_cap_ids: HashMap<String, u32>,
+
+    #[serde(default = "default_token_price")]
+    #[builder(default = default_token_price())]
+    pub token_price: HashMap<u32, f64>,
 }
 
 impl Default for TokenPriceConfig {
@@ -122,5 +126,11 @@ fn default_coin_market_cap_ids() -> HashMap<String, u32> {
     ids.insert("BUSD".to_string(), 4687);
     ids.insert("MTT".to_string(), 1839);
     ids.insert("mUSD".to_string(), 1839);
+    ids
+}
+
+fn default_token_price() -> HashMap<u32, f64> {
+    let mut ids = HashMap::new();
+    ids.insert(5990, 0.01);
     ids
 }

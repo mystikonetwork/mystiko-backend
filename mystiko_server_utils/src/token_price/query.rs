@@ -40,7 +40,7 @@ struct Quote {
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct CurrencyUsdPrice {
-    pub price: f64,
+    pub price: Option<f64>,
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -102,10 +102,11 @@ impl QueryApiInstance {
             return Err(PriceMiddlewareError::ResponseError(response.status.error_code));
         }
 
-        let mut prices = HashMap::new();
-        for (_, price) in response.data {
-            prices.insert(price.id, price.quote.USD.price);
-        }
+        let prices = response
+            .data
+            .iter()
+            .filter_map(|(_, data)| data.quote.USD.price.map(|price| (data.id, price)))
+            .collect::<HashMap<_, _>>();
 
         Ok(prices)
     }
