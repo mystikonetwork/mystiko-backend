@@ -16,3 +16,20 @@ pub trait PriceMiddleware: Debug + Send + Sync {
         decimal_b: u32,
     ) -> PriceMiddlewareResult<U256>;
 }
+
+impl PriceMiddleware for Box<dyn PriceMiddleware> {
+    async fn price(&self, symbol: &str) -> PriceMiddlewareResult<f64> {
+        self.as_ref().price(symbol).await
+    }
+
+    async fn swap(
+        &self,
+        asset_a: &str,
+        decimal_a: u32,
+        amount_a: U256,
+        asset_b: &str,
+        decimal_b: u32,
+    ) -> PriceMiddlewareResult<U256> {
+        self.as_ref().swap(asset_a, decimal_a, amount_a, asset_b, decimal_b).await
+    }
+}
