@@ -1,7 +1,7 @@
 use crate::token_price::PriceMiddlewareError;
+use async_trait::async_trait;
 use ethers_core::types::U256;
 use std::fmt::Debug;
-use async_trait::async_trait;
 
 pub type PriceMiddlewareResult<T> = anyhow::Result<T, PriceMiddlewareError>;
 
@@ -32,6 +32,8 @@ impl PriceMiddleware for Box<dyn PriceMiddleware> {
         asset_b: &str,
         decimal_b: u32,
     ) -> PriceMiddlewareResult<U256> {
-        self.as_ref().swap(asset_a, decimal_a, amount_a, asset_b, decimal_b).await
+        self.as_ref()
+            .swap(asset_a, decimal_a, amount_a, asset_b, decimal_b)
+            .await
     }
 }
