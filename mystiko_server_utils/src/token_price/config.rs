@@ -42,7 +42,7 @@ impl Default for TokenPriceConfig {
 }
 
 impl TokenPriceConfig {
-    pub fn new(run_mod: &str, config_path: Option<PathBuf>) -> PriceMiddlewareResult<Self> {
+    pub fn new(is_testnet: bool, config_path: Option<PathBuf>) -> PriceMiddlewareResult<Self> {
         let config_file: Option<ConfigFile<PathBuf>> = config_path
             .map(|p| {
                 if p.join("token_price.json").exists() {
@@ -65,14 +65,14 @@ impl TokenPriceConfig {
 
         let mut config = load_config::<PathBuf, Self>(&options)?;
         if config.price_cache_ttl.is_none() {
-            config.price_cache_ttl = Some(default_price_cache_ttl(run_mod));
+            config.price_cache_ttl = Some(default_price_cache_ttl(is_testnet));
         }
 
         Ok(config)
     }
 
     pub fn price_cache_ttl(&self) -> u64 {
-        self.price_cache_ttl.unwrap_or(default_price_cache_ttl("testnet"))
+        self.price_cache_ttl.unwrap_or(default_price_cache_ttl(true))
     }
 
     pub fn tokens(&self) -> Vec<String> {
@@ -93,11 +93,11 @@ fn default_query_timeout_secs() -> u32 {
     5
 }
 
-fn default_price_cache_ttl(run_mod: &str) -> u64 {
-    if run_mod == "mainnet" {
-        1800
-    } else {
+fn default_price_cache_ttl(is_testnet: bool) -> u64 {
+    if is_testnet {
         72000
+    } else {
+        1800
     }
 }
 
