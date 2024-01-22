@@ -13,7 +13,7 @@ use serde_json::json;
 #[tokio::test]
 async fn test_get_token_id() {
     let (server, mocks) = create_mock_token_price_server(Some(true), None).await;
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = server.url().to_string();
 
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
@@ -28,7 +28,7 @@ async fn test_get_token_id() {
 async fn test_get_token_id_error() {
     let mut server = Server::new_async().await;
 
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = server.url().to_string();
 
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
@@ -64,7 +64,7 @@ async fn test_get_token_id_error() {
 #[tokio::test]
 async fn test_get_token_id_error2() {
     let mut server = Server::new_async().await;
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = server.url().to_string();
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
     let id_bytes = read_file_bytes("./tests/token_price/files/token_ids_status_error.json")
@@ -87,7 +87,7 @@ async fn test_get_token_id_error2() {
 
 #[tokio::test]
 async fn test_default_token_price() {
-    let default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let default_cfg = TokenPriceConfig::new(true, None).unwrap();
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
     let price = tp.price("DEV").await.unwrap();
     assert!(price > 0.0);
@@ -96,7 +96,7 @@ async fn test_default_token_price() {
 #[tokio::test]
 async fn test_price() {
     let (server, mocks) = create_mock_token_price_server(None, Some(true)).await;
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = server.url().to_string();
 
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
@@ -119,7 +119,7 @@ async fn test_price_error() {
         .create_async()
         .await;
 
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = server.url().to_string();
 
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
@@ -152,7 +152,7 @@ async fn test_price_error() {
 #[tokio::test]
 async fn test_price_error2() {
     let mut server = Server::new_async().await;
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = server.url().to_string();
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
 
@@ -178,7 +178,7 @@ async fn test_price_error2() {
 
 #[tokio::test]
 async fn test_tokne_price_not_init_err() {
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = "http://error.com".to_string();
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
     let price = tp.price("ETH").await;
@@ -197,7 +197,7 @@ async fn test_tokne_price_not_init_err() {
 #[tokio::test]
 async fn test_swap() {
     let (server, mocks) = create_mock_token_price_server(None, Some(true)).await;
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = server.url().to_string();
     default_cfg.swap_precision = 8;
 
@@ -227,7 +227,7 @@ async fn test_swap() {
 #[tokio::test]
 async fn test_internal_error() {
     let (server, mocks) = create_mock_token_price_server(None, Some(true)).await;
-    let mut default_cfg = TokenPriceConfig::new("testnet", None).unwrap();
+    let mut default_cfg = TokenPriceConfig::new(true, None).unwrap();
     default_cfg.base_url = server.url().to_string();
     let tp = TokenPrice::new(&default_cfg, "test").unwrap();
     let price = tp.price("BTC").await;
