@@ -63,7 +63,7 @@ impl Downloader {
         }
     }
 
-    pub async fn download_failover(&mut self, urls: &Vec<String>, options: Option<DownloadOptions>) -> Result<PathBuf> {
+    pub async fn download_failover(&mut self, urls: &[String], options: Option<DownloadOptions>) -> Result<PathBuf> {
         for (index, url) in urls.iter().enumerate() {
             let result = self.download(url, options.clone()).await;
             if result.is_err() && index < urls.len() - 1 {
@@ -79,11 +79,7 @@ impl Downloader {
         Ok(read(self.download(url, options).await?).await?)
     }
 
-    pub async fn read_bytes_failover(
-        &mut self,
-        urls: &Vec<String>,
-        options: Option<DownloadOptions>,
-    ) -> Result<Vec<u8>> {
+    pub async fn read_bytes_failover(&mut self, urls: &[String], options: Option<DownloadOptions>) -> Result<Vec<u8>> {
         Ok(read(self.download_failover(urls, options).await?).await?)
     }
 
