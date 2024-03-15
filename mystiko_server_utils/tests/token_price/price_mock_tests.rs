@@ -91,6 +91,11 @@ async fn test_default_token_price() {
     let tp = TokenPrice::new(&default_cfg, "").unwrap();
     let price = tp.price("DEV").await.unwrap();
     assert!(price > 0.0);
+    let price = tp.price("XZK").await;
+    assert!(matches!(
+        price.err().unwrap(),
+        PriceMiddlewareError::TokenPriceNotInitError(_)
+    ));
 }
 
 #[tokio::test]
