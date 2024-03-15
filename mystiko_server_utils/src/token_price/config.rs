@@ -68,6 +68,10 @@ impl TokenPriceConfig {
             config.price_cache_ttl = Some(default_price_cache_ttl(is_testnet));
         }
 
+        if is_testnet {
+            config.coin_market_cap_ids.insert("XZK".to_string(), 1839);
+        }
+
         Ok(config)
     }
 

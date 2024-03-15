@@ -165,7 +165,7 @@ async fn test_download_error() {
 #[tokio::test]
 async fn test_download_failover() {
     let (mut server, mut downloader, _cache_folder) = build_resource().await;
-    assert!(downloader.download_failover(&vec![], None).await.is_err());
+    assert!(downloader.download_failover(&[], None).await.is_err());
     let path1 = server
         .mock("GET", "/test1.txt")
         .expect(1)
@@ -180,7 +180,7 @@ async fn test_download_failover() {
         .await;
     let file_path = downloader
         .download_failover(
-            &vec![
+            &[
                 format!("{}/test1.txt", server.url()),
                 format!("{}/test2.txt", server.url()),
             ],
@@ -227,7 +227,7 @@ async fn test_read_bytes_failover() {
         .await;
     let bytes = downloader
         .read_bytes_failover(
-            &vec![
+            &[
                 format!("{}/test1.txt", server.url()),
                 format!("{}/test2.txt", server.url()),
             ],
