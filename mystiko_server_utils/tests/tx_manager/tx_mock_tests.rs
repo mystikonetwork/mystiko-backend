@@ -39,7 +39,7 @@ async fn test_min_priority_gas_price() {
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
     let gas_price = tx.gas_price(&provider).await.unwrap();
-    assert_eq!(gas_price.to_string(), "7000000137");
+    assert_eq!(gas_price.to_string(), "7000000130");
 }
 
 #[tokio::test]
@@ -72,7 +72,7 @@ async fn test_max_priority_gas_price() {
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
     let gas_price = tx.gas_price(&provider).await.unwrap();
-    assert_eq!(gas_price.to_string(), "5000000470");
+    assert_eq!(gas_price.to_string(), "5000000463");
 }
 
 #[tokio::test]
@@ -156,13 +156,13 @@ async fn test_send_1559_tx() {
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
-    let tx = builder.build(Some(true), &provider).await.unwrap();
+    let tx = builder.build(None, &provider).await.unwrap();
     assert!(tx.tx_eip1559());
 
     mock.push(history.clone()).unwrap();
     mock.push(block.clone()).unwrap();
     let gas_price = tx.gas_price(&provider).await.unwrap();
-    assert_eq!(gas_price.to_string(), "6000000014");
+    assert_eq!(gas_price.to_string(), "6000000007");
 
     mock.push(gas).unwrap();
     mock.push(nonce).unwrap();
@@ -372,8 +372,6 @@ async fn test_1559_tx_with_error() {
         .wallet(wallet)
         .build();
 
-    mock.push(history.clone()).unwrap();
-    mock.push(block.clone()).unwrap();
     let tx = builder.build(Some(true), &provider).await.unwrap();
     assert!(tx.tx_eip1559());
 

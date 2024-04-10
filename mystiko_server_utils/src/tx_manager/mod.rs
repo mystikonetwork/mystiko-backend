@@ -1,4 +1,5 @@
 mod error;
+mod gas;
 mod tx;
 mod types;
 

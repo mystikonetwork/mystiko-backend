@@ -8,6 +8,7 @@ use ethers_core::types::{BlockNumber, TxHash, U256, U64};
 use log::{info, warn};
 // use ethers_middleware::gas_escalator::GasEscalatorMiddleware;
 // use ethers_middleware::gas_escalator::{Frequency, GeometricGasPrice};
+use crate::tx_manager::gas::eip1559_default_estimator;
 use crate::tx_manager::types::{TransactionData, TransactionMiddleware, TransactionMiddlewareResult};
 use ethers_middleware::gas_oracle::{GasOracle, ProviderOracle};
 use ethers_middleware::{NonceManagerMiddleware, SignerMiddleware};
@@ -42,7 +43,10 @@ impl TxManagerBuilder {
         provider: &Provider<P>,
     ) -> TransactionMiddlewareResult<TxManager<P>> {
         let chain_config: TxManagerChainConfig = self.config.chain_config(&self.chain_id)?;
-        let tx_eip1559 = tx_eip1559.unwrap_or(ProviderOracle::new(provider).estimate_eip1559_fees().await.is_ok());
+        let tx_eip1559 = match tx_eip1559 {
+            Some(eip1559) => eip1559,
+            None => provider.estimate_eip1559_fees(None).await.is_ok(),
+        };
         Ok(TxManager {
             chain_id: self.chain_id,
             config: chain_config.clone(),
@@ -232,9 +236,8 @@ where
     }
 
     async fn gas_price_1559_tx(&self, provider: &Provider<P>) -> Result<(U256, U256)> {
-        let gas_oracle = ProviderOracle::new(provider);
-        let (max_fee_per_gas, mut priority_fee) = gas_oracle
-            .estimate_eip1559_fees()
+        let (max_fee_per_gas, mut priority_fee) = provider
+            .estimate_eip1559_fees(Some(eip1559_default_estimator))
             .await
             .map_err(|e| TransactionMiddlewareError::GasPriceError(e.to_string()))?;
         priority_fee = self

@@ -1,4 +1,5 @@
-use ethers_core::types::{U256, U64};
+use ethers_core::abi::Address;
+use ethers_core::types::{TransactionRequest, U256, U64};
 use ethers_core::utils::Anvil;
 use ethers_providers::{Http, Middleware, Provider};
 use ethers_signers::{LocalWallet, Signer};
@@ -8,10 +9,17 @@ use mystiko_server_utils::tx_manager::{TransactionData, TransactionMiddleware, T
 
 #[tokio::test]
 async fn test_send_1559_tx() {
+    // let anvil = Anvil::new().fork_block_number(2_u64).spawn();
     let anvil = Anvil::new().spawn();
     let endpoint = anvil.endpoint();
 
     let provider = Provider::<Http>::try_from(endpoint).unwrap();
+    // broadcast a transaction
+    let from = anvil.addresses()[0];
+    let tx = TransactionRequest::new().from(from).to(Address::zero()).value(10000);
+    let tx_hash = provider.send_transaction(tx, None).await.unwrap();
+    let _ = provider.get_transaction(*tx_hash).await.unwrap().unwrap();
+
     let chain_id = provider.get_chainid().await.unwrap();
     let wallet: LocalWallet = anvil.keys().first().unwrap().clone().into();
     let wallet = wallet.with_chain_id(chain_id.as_u64());
