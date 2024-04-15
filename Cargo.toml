@@ -3,7 +3,8 @@ members = [
     "mystiko_downloader",
     "mystiko_fs",
     "mystiko_notification",
-    "mystiko_server_utils"
+    "mystiko_server_utils",
+    "mystiko_static_storage"
 ]
 resolver = "2"
 
