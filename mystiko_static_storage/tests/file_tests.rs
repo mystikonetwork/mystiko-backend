@@ -37,7 +37,7 @@ async fn test_list_files() {
     storage.put("a/test.txt".into()).await.unwrap();
     storage.put("a/b/test.txt".into()).await.unwrap();
     storage.put("a/b/c/test.txt".into()).await.unwrap();
-    let files = storage
+    let mut files = storage
         .list_files("a".into())
         .await
         .unwrap()
@@ -45,7 +45,8 @@ async fn test_list_files() {
         .into_iter()
         .map(|f| f.to_string_lossy().to_string())
         .collect::<Vec<_>>();
-    assert_eq!(files, vec!["a/test.txt", "a/b/test.txt", "a/b/c/test.txt",]);
+    files.sort();
+    assert_eq!(files, vec!["a/b/c/test.txt", "a/b/test.txt", "a/test.txt",]);
     let files = storage
         .list_files(ListFilesRequest::builder().path("a").non_recursively(true).build())
         .await
