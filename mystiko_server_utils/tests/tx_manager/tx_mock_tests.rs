@@ -277,7 +277,10 @@ async fn test_send_legacy_try_lower_gas_price() {
     let mut cfg = TxManagerConfig::new(None).unwrap();
     cfg.chains.insert(
         chain_id,
-        TxManagerChainConfig::builder().confirm_interval_secs(1_u64).build(),
+        TxManagerChainConfig::builder()
+            .confirm_interval_secs(1_u64)
+            .lower_gas_price_mod(true)
+            .build(),
     );
     let builder = TxManagerBuilder::builder()
         .config(cfg)

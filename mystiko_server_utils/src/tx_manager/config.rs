@@ -171,7 +171,7 @@ fn block_count_an_hour_and_half(chain_id: u64) -> u32 {
 }
 
 fn default_lower_gas_price_mod() -> bool {
-    true
+    false
 }
 
 fn default_lower_gas_price_percentage(chain_id: u64) -> u32 {
