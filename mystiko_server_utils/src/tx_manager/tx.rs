@@ -293,7 +293,7 @@ where
         //     // Frequency::Duration(self.config.bump_gas_price_ms),
         //     Frequency::Duration(300),
         // );
-
+        info!("send legacy tx with gas price {:?}", tx_request.gas_price);
         let pending_tx = signer
             .send_transaction(tx_request, None)
             .await
@@ -323,6 +323,10 @@ where
 
     async fn send_1559_tx(&self, tx_request: Eip1559TransactionRequest, provider: &Provider<P>) -> Result<TxHash> {
         let signer = SignerMiddleware::new(provider, self.wallet.clone());
+        info!(
+            "send 1559 tx with max_fee_per_gas {:?} and max_priority_fee_per_gas {:?} ",
+            tx_request.max_fee_per_gas, tx_request.max_priority_fee_per_gas
+        );
         let pending_tx = signer
             .send_transaction(tx_request, None)
             .await
