@@ -150,11 +150,11 @@ fn default_confirm_blocks() -> u32 {
 }
 
 fn default_lower_gas_price_confirm_count(chain_id: u64) -> u32 {
-    block_count_an_hour_and_half(chain_id) / 9
+    block_count_an_hour_and_half(chain_id) / 18
 }
 
 fn default_max_confirm_count(chain_id: u64) -> u32 {
-    block_count_an_hour_and_half(chain_id) / 6
+    block_count_an_hour_and_half(chain_id) / 12
 }
 
 fn block_count_an_hour_and_half(chain_id: u64) -> u32 {
@@ -162,11 +162,12 @@ fn block_count_an_hour_and_half(chain_id: u64) -> u32 {
         1 | 5 => 500,
         56 | 97 => 1875,
         137 | 80001 => 2500,
+        43113 | 43114 => 1875,
         8453 | 84531 => 2500,
-        43113 => 1875,
+        59144 | 59141 => 2500,
         4002 => 3125,
         1287 => 292,
-        _ => 2000,
+        _ => 2500,
     }
 }
 
