@@ -10,8 +10,8 @@ const COIN_MARKET_API_KEY: &str = "";
 async fn test_get_token_id() {
     let default_cfg = TokenPriceConfig::new(false, None).unwrap();
     let tp = TokenPrice::new(&default_cfg, COIN_MARKET_API_KEY).unwrap();
-    let id = tp.get_token_id("ETH").await.unwrap();
-    assert_eq!(id, [1027]);
+    let id = tp.get_token_id("XZK").await.unwrap();
+    assert_eq!(id, [30608]);
 }
 
 #[tokio::test]

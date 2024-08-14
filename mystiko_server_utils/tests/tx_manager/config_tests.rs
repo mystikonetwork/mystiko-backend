@@ -12,12 +12,12 @@ async fn test_read_config() {
     println!("cfg {}", serde_json::to_string(&cfg).unwrap());
 
     let cfg = cfg.chain_config(&1).unwrap();
-    assert_eq!(cfg.get_max_confirm_count(1), 83);
+    assert_eq!(cfg.get_max_confirm_count(1), 41);
     assert_eq!(cfg.gas_limit_reserve_percentage, 10);
 
     let cfg = TxManagerConfig::new(Some(PathBuf::from("tests/tx_manager/empty"))).unwrap();
     let cfg1 = cfg.chain_config(&1).unwrap();
-    assert_eq!(cfg1.get_max_confirm_count(1), 83);
+    assert_eq!(cfg1.get_max_confirm_count(1), 41);
     let cfg137 = cfg.chain_config(&137).unwrap();
     assert_eq!(cfg137.min_priority_fee_per_gas, None);
 

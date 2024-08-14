@@ -181,16 +181,22 @@ where
     ) -> TransactionMiddlewareResult<TransactionReceipt> {
         for _ in 0..max_count {
             tokio::time::sleep(Duration::from_secs(self.config.confirm_interval_secs)).await;
-            let tx_first = provider
-                .get_transaction(*tx_hash)
-                .await
-                .map_err(|why| TransactionMiddlewareError::ConfirmTxError(why.to_string()))?;
+            let tx_first = provider.get_transaction(*tx_hash).await;
 
             // try again for some provider error of lose transaction for a while
-            // todo polygon provider bug, more wait time
             let tx = match tx_first {
-                Some(t) => t,
-                None => {
+                Ok(Some(t)) => t,
+                Ok(None) => {
+                    warn!("Transaction not found, retrying...");
+                    tokio::time::sleep(Duration::from_secs(self.config.confirm_interval_secs)).await;
+                    provider
+                        .get_transaction(*tx_hash)
+                        .await
+                        .map_err(|why| TransactionMiddlewareError::ConfirmTxError(why.to_string()))?
+                        .ok_or_else(|| TransactionMiddlewareError::TxDroppedError(tx_hash.to_string()))?
+                }
+                Err(why) => {
+                    warn!("get transaction meet error: {:?}, retrying...", why.to_string());
                     tokio::time::sleep(Duration::from_secs(self.config.confirm_interval_secs)).await;
                     provider
                         .get_transaction(*tx_hash)
@@ -200,23 +206,30 @@ where
                 }
             };
 
-            if let Some(block_number) = tx.block_number {
-                let current_block_number = provider
-                    .get_block_number()
-                    .await
-                    .map_err(|why| TransactionMiddlewareError::ConfirmTxError(why.to_string()))?;
-                if current_block_number < block_number.saturating_add(self.config.confirm_blocks.into()) {
-                    info!("waiting for tx to be confirmed");
+            if let Some(tx_block_number) = tx.block_number {
+                let current_block_number = match provider.get_block_number().await {
+                    Ok(block_number) => block_number,
+                    Err(e) => {
+                        warn!("Error fetching current block number: {:?}, retrying...", e.to_string());
+                        continue;
+                    }
+                };
+
+                if current_block_number < tx_block_number.saturating_add(self.config.confirm_blocks.into()) {
+                    info!("Waiting for transaction to be confirmed...");
                     continue;
                 }
             } else {
                 continue;
             }
 
-            let receipt = provider
-                .get_transaction_receipt(*tx_hash)
-                .await
-                .map_err(|why| TransactionMiddlewareError::ConfirmTxError(why.to_string()))?;
+            let receipt = match provider.get_transaction_receipt(*tx_hash).await {
+                Ok(receipt) => receipt,
+                Err(e) => {
+                    warn!("Error fetching transaction receipt: {:?}, retrying...", e.to_string());
+                    continue;
+                }
+            };
 
             if let Some(receipt) = receipt {
                 if receipt.status != Some(U64::from(1)) {
