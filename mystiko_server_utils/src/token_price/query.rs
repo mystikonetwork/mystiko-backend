@@ -73,7 +73,7 @@ impl QueryApiInstance {
         map.insert("symbol", symbol);
         let response = self
             .client
-            .get(&format!("{}{}", self.base_url, "/v1/cryptocurrency/map"))
+            .get(format!("{}{}", self.base_url, "/v1/cryptocurrency/map"))
             .query(&map)
             .send()
             .await?
@@ -91,7 +91,7 @@ impl QueryApiInstance {
         let ids_str = ids.iter().map(|&id| id.to_string()).collect::<Vec<_>>().join(",");
         let response = self
             .client
-            .get(&format!("{}{}", self.base_url, "/v2/cryptocurrency/quotes/latest"))
+            .get(format!("{}{}", self.base_url, "/v2/cryptocurrency/quotes/latest"))
             .query(&[("id", ids_str)])
             .send()
             .await?

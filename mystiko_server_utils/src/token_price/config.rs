@@ -120,6 +120,7 @@ fn default_coin_market_cap_ids() -> HashMap<String, u32> {
     ids.insert("mFTM".to_string(), 3513);
     ids.insert("MATIC".to_string(), 3890);
     ids.insert("mMATIC".to_string(), 3890);
+    ids.insert("POL".to_string(), 28321);
     ids.insert("DEV".to_string(), 5990);
     ids.insert("mDEV".to_string(), 5990);
     ids.insert("AVAX".to_string(), 5805);
@@ -131,6 +132,7 @@ fn default_coin_market_cap_ids() -> HashMap<String, u32> {
     ids.insert("MTT".to_string(), 1839);
     ids.insert("mUSD".to_string(), 1839);
     ids.insert("XZK".to_string(), 30608);
+    ids.insert("ZETA".to_string(), 21259);
     ids
 }
 
