@@ -114,6 +114,7 @@ fn default_coin_market_cap_ids() -> HashMap<String, u32> {
     ids.insert("ETH".to_string(), 1027);
     ids.insert("mETH".to_string(), 1027);
     ids.insert("WETH".to_string(), 1027);
+    ids.insert("WETHWormhole".to_string(), 1027);
     ids.insert("BNB".to_string(), 1839);
     ids.insert("mBNB".to_string(), 1839);
     ids.insert("FTM".to_string(), 3513);
