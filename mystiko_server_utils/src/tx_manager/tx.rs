@@ -89,10 +89,16 @@ where
         };
 
         let signer = SignerMiddleware::new(provider, self.wallet.clone());
-        signer
+        let gas = signer
             .estimate_gas(&typed_tx, None)
             .await
-            .map_err(|why| TransactionMiddlewareError::EstimateGasError(why.to_string()))
+            .map_err(|why| TransactionMiddlewareError::EstimateGasError(why.to_string()))?;
+        if gas.is_zero() {
+            return Err(TransactionMiddlewareError::EstimateGasError(
+                "estimate gas is zero".to_string(),
+            ));
+        }
+        Ok(gas)
     }
 
     async fn send(&self, data: &TransactionData, provider: &Provider<P>) -> TransactionMiddlewareResult<TxHash> {

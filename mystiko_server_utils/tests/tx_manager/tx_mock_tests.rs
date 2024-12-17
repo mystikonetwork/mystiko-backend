@@ -508,6 +508,41 @@ async fn test_legacy_tx_with_error() {
 }
 
 #[tokio::test]
+async fn test_legacy_tx_estimate_gas_zero_error() {
+    let (provider, mock) = Provider::mocked();
+    let chain_id = 2000u64;
+    let wallet = LocalWallet::new(&mut rand::thread_rng()).with_chain_id(chain_id);
+    let to_address = wallet.address();
+    let cfg = TxManagerConfig::new(None).unwrap();
+    let builder = TxManagerBuilder::builder()
+        .config(cfg)
+        .chain_id(chain_id)
+        .wallet(wallet)
+        .build();
+    let tx = builder.build(Some(false), &provider).await.unwrap();
+    assert!(!tx.tx_eip1559());
+
+    let max_gas_price = U256::from(100_000_000_000u64);
+    let nonce = U256::from(100);
+    let gas = U256::from(0u64);
+    mock.push(gas).unwrap();
+    mock.push(nonce).unwrap();
+    let value = ethers_core::utils::parse_ether("1").unwrap();
+    let tx_data = TransactionData::builder()
+        .to(to_address)
+        .data(vec![].into())
+        .value(value)
+        .gas(U256::zero())
+        .max_price(max_gas_price)
+        .build();
+    let gas = tx.estimate_gas(&tx_data, &provider).await;
+    assert!(matches!(
+        gas.err().unwrap(),
+        TransactionMiddlewareError::EstimateGasError(ref err) if err == "estimate gas is zero"
+    ));
+}
+
+#[tokio::test]
 async fn test_confirm_with_error() {
     let (provider, mock) = Provider::mocked();
 
