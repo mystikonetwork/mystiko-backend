@@ -2007,7 +2007,7 @@ dependencies = [
 [[package]]
 name = "mystiko_utils"
 version = "0.1.0"
-source = "git+ssh://git@github.com/mystikonetwork/mystiko-rust.git?rev=6718362#67183625d35fb8517174a95f90c57638d5b7e7b8"
+source = "git+https://github.com/mystikonetwork/mystiko-rust?rev=54d11e0#54d11e0c853437a158df24e89ff6f9c34cdb665a"
 dependencies = [
  "anyhow",
  "config",

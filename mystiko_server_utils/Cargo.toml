@@ -24,7 +24,7 @@ dotenv = { version = "0.15.0" }
 tokio = { version = "1.26.0", features = ["time"] }
 crypto-bigint = { version = "=0.5.0" }
 
-mystiko_utils = { git = "ssh://git@github.com/mystikonetwork/mystiko-rust.git", rev = "6718362", features = ["config"] }
+mystiko_utils = { git = "https://github.com/mystikonetwork/mystiko-rust", rev = "54d11e0", features = ["config"] }
 
 [dev-dependencies]
 tokio = { version = "1.26.0", features = ["macros", "rt", "test-util"] }
