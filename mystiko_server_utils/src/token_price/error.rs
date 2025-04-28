@@ -17,6 +17,8 @@ pub enum PriceMiddlewareError {
     ResponseError(u64),
     #[error("internal error")]
     InternalError,
+    #[error("parse price {0} error")]
+    ParsePriceError(String),
     #[error(transparent)]
     SerdeJsonError(#[from] SerdeJsonError),
     #[error(transparent)]

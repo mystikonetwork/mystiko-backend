@@ -33,6 +33,24 @@ impl PriceMiddleware for TokenPrice {
         self.get_token_price(symbol).await
     }
 
+    async fn price_by_times(&self, symbol: &str, timestamp_second: u64) -> PriceMiddlewareResult<f64> {
+        let token_symbol = format!("{}USDT", symbol.to_string().to_uppercase());
+        let response = reqwest::get(format!(
+            "https://api.binance.com/api/v3/klines?symbol={}&interval=1s&limit=1&startTime={}&endTime={}",
+            token_symbol,
+            timestamp_second * 1000,
+            timestamp_second * 1000
+        ))
+        .await?;
+        let price = response.json::<Vec<Vec<serde_json::Value>>>().await?;
+        let price_str = price[0][4]
+            .as_str()
+            .ok_or_else(|| PriceMiddlewareError::ParsePriceError(format!("Invalid price format: {:?}", price[0][4])))?;
+        Ok(price_str
+            .parse::<f64>()
+            .map_err(|_| PriceMiddlewareError::ParsePriceError(price_str.to_string()))?)
+    }
+
     async fn swap(
         &self,
         asset_a: &str,

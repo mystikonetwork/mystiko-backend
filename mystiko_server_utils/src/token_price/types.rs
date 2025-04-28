@@ -8,6 +8,7 @@ pub type PriceMiddlewareResult<T> = anyhow::Result<T, PriceMiddlewareError>;
 #[async_trait::async_trait]
 pub trait PriceMiddleware: Debug + Send + Sync {
     async fn price(&self, symbol: &str) -> PriceMiddlewareResult<f64>;
+    async fn price_by_times(&self, symbol: &str, timestamp_second: u64) -> PriceMiddlewareResult<f64>;
     async fn swap(
         &self,
         asset_a: &str,
@@ -22,6 +23,10 @@ pub trait PriceMiddleware: Debug + Send + Sync {
 impl PriceMiddleware for Box<dyn PriceMiddleware> {
     async fn price(&self, symbol: &str) -> PriceMiddlewareResult<f64> {
         self.as_ref().price(symbol).await
+    }
+
+    async fn price_by_times(&self, symbol: &str, timestamp_second: u64) -> PriceMiddlewareResult<f64> {
+        self.as_ref().price_by_times(symbol, timestamp_second).await
     }
 
     async fn swap(

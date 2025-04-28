@@ -33,3 +33,11 @@ async fn test_swap() {
         .unwrap();
     assert!(amount > U256::from("100000000"));
 }
+
+#[tokio::test]
+async fn test_price_by_times() {
+    let default_cfg = TokenPriceConfig::new(false, None).unwrap();
+    let tp = TokenPrice::new(&default_cfg, COIN_MARKET_API_KEY).unwrap();
+    let price = tp.price_by_times("POL", 1733890861).await.unwrap();
+    println!("price: {}", price);
+}
