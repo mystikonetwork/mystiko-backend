@@ -43,6 +43,12 @@ impl PriceMiddleware for TokenPrice {
         ))
         .await?;
         let price = response.json::<Vec<Vec<serde_json::Value>>>().await?;
+        if price.is_empty() || price[0].len() <= 4 {
+            return Err(PriceMiddlewareError::ParsePriceError(format!(
+                "Invalid response format: {:?}",
+                price
+            )));
+        }
         let price_str = price[0][4]
             .as_str()
             .ok_or_else(|| PriceMiddlewareError::ParsePriceError(format!("Invalid price format: {:?}", price[0][4])))?;

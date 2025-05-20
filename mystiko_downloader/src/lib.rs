@@ -100,7 +100,7 @@ impl Downloader {
                 let file = File::create(&file_path).await?;
                 let stream = response
                     .bytes_stream()
-                    .map(|result| result.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
+                    .map(|result| result.map_err(std::io::Error::other));
                 let mut file_reader = StreamReader::new(stream);
                 let mut file_writer = BufWriter::new(file);
                 copy(&mut file_reader, &mut file_writer).await?;

@@ -40,4 +40,14 @@ async fn test_price_by_times() {
     let tp = TokenPrice::new(&default_cfg, COIN_MARKET_API_KEY).unwrap();
     let price = tp.price_by_times("POL", 1733890861).await.unwrap();
     println!("price: {}", price);
+    let price = tp.price_by_times("USDC", 1733890861).await.unwrap();
+    println!("price: {}", price);
+    let price = tp.price_by_times("ETH", 1733890861).await.unwrap();
+    println!("price: {}", price);
+    let price = tp.price_by_times("AAVE", 1733890861).await.unwrap();
+    println!("price: {}", price);
+    let price = tp.price_by_times("BUSD", 1733890861).await;
+    assert!(price.is_err());
+    let price = tp.price_by_times("USDT", 1733890861).await;
+    assert!(price.is_err());
 }
